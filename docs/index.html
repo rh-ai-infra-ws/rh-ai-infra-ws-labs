@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Document</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="Description">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests; frame-src https:; default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple.css">
+  <!-- wrap long lines in docsify code blocks -->
+  <style>
+    /* Docsify renders your Markdown into .markdown-section by default */
+    .markdown-section pre,
+    .markdown-section pre > code {
+      white-space: pre-wrap !important;     /* preserve line‑breaks but allow wrapping */
+      overflow-wrap: break-word !important; /* break long words if needed */
+    }
+  </style>
+</head>
+<body>
+  <!-- Added Top Navigation with Dropdown -->
+  <div class="top-navigation">
+
+  </div>
+
+  <div class="user-name-form">
+      <div class="user-inputs">
+        <label for="uname">User Name</label><br/>
+        <input type="text" id="uname" name="username" placeholder="Your username..">
+      </div>
+
+      <div class="user-inputs" style="display: none;">
+        <label for="pass">Password</label><br/>
+        <input type="text" id="pass" name="password" placeholder="Your password">
+      </div>
+
+      <div class="user-inputs">
+        <label for="cdomain">Cluster Domain</label><br/>
+        <input type="text" id="cdomain" name="clusterdomain" placeholder="Your cluster domain..">
+      </div>
+
+
+      <div class="user-inputs" style="display: none;">
+        <label for="gitserver">Git Server (optional)</label><br/>
+        <input type="text" id="gitserver" name="gitserver" placeholder="Your git server..">
+      </div>
+      
+      <div class="user-inputs" style="display: none;">
+        <label for="prompt">System Prompt (optional)</label><br/>
+        <input type="text" id="prompt" name="prompt" placeholder="You're a smart chatbot who only replies in emojis.">
+      </div>
+
+      <div class="" style="margin-left: 30px;">
+        <button class="storage-btns" onclick="setNamesInStorage()">Save</button>
+        <button class="storage-btns" onclick="clearStorage()">Clear</button>
+
+        <div class="dropdown">
+          <!-- class="dropbtn" -->
+          <button class="storage-btns"  style="background-color: #cc0000; color: white; border: 2px #FAB6B6;">Quick Links</button>
+          <div class="dropdown-content" id="dynamic-links">
+            <!-- Links will be populated dynamically with JavaScript -->
+          </div>
+        </div>
+
+      </div>
+  </div>
+
+  <div id="app"></div>
+    
+  <script>
+    document.getElementById("uname").value = localStorage.getItem('USER_NAME') ? localStorage.getItem('USER_NAME') : '';
+    document.getElementById("pass").value = localStorage.getItem('PASSWORD') ? localStorage.getItem('PASSWORD') : '';
+    document.getElementById("cdomain").value = localStorage.getItem('CLUSTER_DOMAIN') ? localStorage.getItem('CLUSTER_DOMAIN') : '';
+    document.getElementById("gitserver").value = localStorage.getItem('GIT_SERVER') ? localStorage.getItem('GIT_SERVER') : '';
+    document.getElementById("prompt").value = localStorage.getItem('PROMPT') ? localStorage.getItem('PROMPT') : '';
+
+    // Populate dropdown links with dynamic values
+    function populateDropdownLinks() {
+      const clusterDomain = localStorage.getItem('CLUSTER_DOMAIN') ? localStorage.getItem('CLUSTER_DOMAIN') : '<CLUSTER_DOMAIN>';
+      const gitServer = localStorage.getItem('GIT_SERVER') ? localStorage.getItem('GIT_SERVER') : '<GIT_SERVER>';
+      const username = localStorage.getItem('USER_NAME') ? localStorage.getItem('USER_NAME') : '<USER_NAME>';
+      const password = localStorage.getItem('PASSWORD') ? localStorage.getItem('PASSWORD') : '<PASSWORD>';      
+      const prompt= localStorage.getItem('PROMPT') ? localStorage.getItem('PROMPT') : '<PROMPT>';      
+      const linksContainer = document.getElementById('dynamic-links');
+      if (!linksContainer) return;
+      
+      // Clear existing links
+      linksContainer.innerHTML = '';
+      
+      // Add dynamic links
+      const links = [
+        // { name: '☕️ Git Server', url: `https://${gitServer}` },
+        { name: '📺 OpenShift Console', url: `https://console-openshift-console.${clusterDomain}` },
+        { name: '🧠 OpenShift AI Dashboard', url: `https://data-science-gateway.${clusterDomain}` },
+        // { name: '🐙 Argo CD', url: `https://argocd-server-${username}-toolings.${clusterDomain}` },
+        // { name: '🦙 Prompt Tracker', url: `https://prompt-tracker-ai501.${clusterDomain}/${username}/${clusterDomain}` }
+      ];
+      
+      links.forEach(link => {
+        const a = document.createElement('a');
+        a.href = link.url;
+        a.textContent = link.name;
+        a.target = '_blank'; // Open in new tab
+        linksContainer.appendChild(a);
+      });
+    }
+
+    // Call once on page load
+    document.addEventListener('DOMContentLoaded', populateDropdownLinks);
+    
+    function setNamesInStorage () {
+      let uname = document.getElementById('uname').value.toLowerCase();
+      let pass = document.getElementById('pass').value;
+      let prompt = document.getElementById('prompt').value;
+      let cdomain = (document.getElementById('cdomain').value.toLowerCase().indexOf('https://') > -1) 
+                    ? document.getElementById('cdomain').value.toLowerCase().substring(8).replace(/[\/,&,?]/g, "")  
+                    : document.getElementById('cdomain').value.toLowerCase().replace(/[\/,&,?]/g, "");
+      let gitserver = (document.getElementById('gitserver').value.toLowerCase().indexOf('https://') > -1) 
+                    ? document.getElementById('gitserver').value.toLowerCase().substring(8) 
+                    : document.getElementById('gitserver').value.toLowerCase();
+
+      // Check inputs
+      if (uname == '') {        
+         alert('Please enter a username');
+         return;
+      }
+      // if (pass == '') {        
+      //   alert('Please enter your password');
+      //   return;
+      // }
+      if (cdomain == '') {        
+        alert('Please enter a cluster domain');
+        return;
+      }
+
+      console.info('INFO - setting user, cluster and git to :', uname, pass, cdomain, gitserver);
+      localStorage.setItem('USER_NAME', uname);
+      localStorage.setItem('PASSWORD', pass);
+      localStorage.setItem('CLUSTER_DOMAIN', cdomain);
+      localStorage.setItem('PROMPT', prompt);
+      // gitserver is not nullable
+      if (gitserver !== '') {
+        localStorage.setItem('GIT_SERVER', gitserver);
+      } else {
+        // Default GitLab Server
+        localStorage.setItem('GIT_SERVER', 'gitea-gitea.' + cdomain);
+      }
+
+      // If gitserver field is using the default pattern, update it with new cluster domain
+      if (gitserver === '' || gitserver.startsWith('gitea-gitea.')) {
+        localStorage.setItem('GIT_SERVER', 'gitea-gitea.' + cdomain);
+      }
+      location.reload();
+      // Re-populate dropdown links with new values
+      populateDropdownLinks();
+    }
+
+    function clearStorage () {
+      console.info('INFO - clearing user and cluster');
+      localStorage.removeItem('USER_NAME');
+      localStorage.removeItem('PROMPT');
+      localStorage.removeItem('PASSWORD');
+      localStorage.removeItem('CLUSTER_DOMAIN');
+      localStorage.removeItem('GIT_SERVER');
+      document.getElementById('uname').value = '';
+      document.getElementById('pass').value = '';
+      document.getElementById('prompt').value = '';
+      document.getElementById('cdomain').value = '';
+      document.getElementById('gitserver').value = '';
+      location.reload();
+      // Update dropdown links after clearing storage
+      populateDropdownLinks();
+    }
+
+    // Custom Gradio component function
+    function createGradioEmbed(container, appUrl) {
+      const iframe = document.createElement('iframe');
+      iframe.src = appUrl;
+      iframe.style.width = '100%';
+      iframe.style.height = '600px';
+      iframe.style.border = '1px solid #ddd';
+      iframe.style.borderRadius = '8px';
+      iframe.frameBorder = '0';
+      container.appendChild(iframe);
+    }
+
+    window.$docsify = {
+      auto2top: true,
+      executeScript: true,
+      name: 'Openshift AI Infrastructure Workshop',
+      repo: 'https://github.com/rh-ai-infra-ws/rh-ai-infra-ws-labs.git',
+      loadSidebar: true,
+      subMaxLevel: 0,
+      sidebarDisplayLevel: 0,
+      alias: {
+      '/.*/_sidebar.md': '/_sidebar.md'
+      },
+      copyCode: {
+        buttonText : '✂️',
+        errorText  : '😔',
+        successText: '💚 copied'
+      },
+      pagination: {
+        crossChapter: true
+    },
+      plugins: [
+        function(hook) {
+          hook.beforeEach(function(content) {
+
+            fetch('config/all.json')
+            .then(function(response) {
+              return response.json();
+            }).then(function(jsonData) {
+              console.info("🥳 YAY! Found the config file 🥳", jsonData);
+              document.getElementById('crw_dev_filelocation').setAttribute('href', jsonData.devfile);
+              document.getElementById('crw_dev_filelocation').innerHTML = jsonData.devfile;
+              document.getElementById('crw_dev_filelocation_4.11').setAttribute('href', jsonData.devfile411);
+              document.getElementById('crw_dev_filelocation_4.11').innerHTML = jsonData.devfile411;
+            }).catch(function(err) {
+              console.warn("😭 Opps, Cannot find the config file 😭", err);
+            })
+
+            // Invoked each time before parsing the Markdown file.
+            const userName = localStorage.getItem('USER_NAME') ? localStorage.getItem('USER_NAME') : '<USER_NAME>';
+            const passWord = localStorage.getItem('PASSWORD') ? localStorage.getItem('PASSWORD') : '<PASSWORD>';
+            const prompt = localStorage.getItem('PROMPT') ? localStorage.getItem('PROMPT') : '<PROMPT>';
+            const clusterDomain = localStorage.getItem('CLUSTER_DOMAIN') ? localStorage.getItem('CLUSTER_DOMAIN') : '<CLUSTER_DOMAIN>';
+            const gitServer = localStorage.getItem('GIT_SERVER') ? localStorage.getItem('GIT_SERVER') : '<GIT_SERVER>';
+            return content.replaceAll('<USER_NAME>', userName)
+                    .replaceAll('<PASSWORD>', passWord)
+                    .replaceAll('<CLUSTER_DOMAIN>', clusterDomain)
+                    .replaceAll('<PROMPT>', prompt)
+                    .replaceAll('<GIT_SERVER>', gitServer)
+                    .replaceAll('<GRADIO_EMBED>', '<div id="gradio-app-container"></div>');
+          });
+
+          // Add hook to handle Gradio embedding after content is rendered
+          hook.doneEach(function() {
+            const container = document.getElementById('gradio-app-container');
+            if (container && !container.hasChildNodes()) {
+              // Replace with your actual Gradio app URL
+              createGradioEmbed(container, 'https://your-gradio-app-url.com');
+            }
+          });
+
+          const footer = `<hr/>
+            <footer>
+            <span><a href="https://github.com/rhoai-genaiops"> 🤖 GenAIOps Git Repository</a> </span>
+            </footer>
+            `;
+
+          hook.afterEach(function(html) {
+            return html + footer;
+          });
+        }
+      ],
+      search: 'auto', // default
+      vueComponents: { }
+    }    
+  </script>
+
+  <!-- Docsify v4 -->
+  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  <script src="//unpkg.com/docsify-pagination/dist/docsify-pagination.min.js"></script>  
+  <script src="//unpkg.com/prismjs/components/prism-bash.min.js"></script>
+  <script src="//unpkg.com/prismjs/components/prism-yaml.min.js"></script>
+  <script src="//unpkg.com/prismjs/components/prism-python.min.js"></script>
+  <script src="//unpkg.com/prismjs/components/prism-groovy.min.js"></script>
+  <script src="//unpkg.com/prismjs/components/prism-go.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-sidebar-collapse/dist/docsify-sidebar-collapse.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-themeable@0/dist/js/docsify-themeable.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-prism@latest/dist/docsify-prism.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: false });</script>
+  <script src="//unpkg.com/docsify-mermaid@2.0.1/dist/docsify-mermaid.js"></script>
+  <style>
+    input[type=text] {
+      padding: 8px 12px;
+      /* display: inline-block; */
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+    input[type=text]:focus {
+      outline: none !important;
+      border: 2px solid #F5606D;
+    }
+    .user-name-form {
+      margin-left: 7%;
+      background-color: #f3f3f3;
+      padding-left: 20%;
+      padding-right: 20%;
+      padding-top: 10px;
+      padding-bottom: 10px;
+      display: flex;
+      align-items: center;
+    }
+    .user-inputs {
+      flex: 1;
+      margin-right: 20px;
+    }
+    .user-inputs:first-child {
+      /* margin-right: 30%; */
+    }
+    .user-inputs:input,label {
+      font-size: 12px;
+      display: block;
+    }
+    .storage-btns {
+      font-size: 12px;
+      margin: 10px;
+      padding: 10px;
+      cursor: pointer;
+      background-color: #FAB6B6;
+      color: black;
+      border: 2px solid #FAB6B6; 
+      width: 130px; 
+      text-align: center;
+    }
+    p.tip {
+      border-left-color: #4D4D4D;
+    }
+    p.tip:before {
+      content: "!";
+      background-color: #4D4D4D;
+    }
+    .sidebar {
+       background-color: #f3f3f3;
+    }
+
+    .slider {
+      width: 67em;
+      height: 250px;
+      display: flex;
+      overflow-x: auto;
+    }
+    .slide {
+      width: 67em;
+      flex-shrink: 0;
+      height: 100%;
+    }
+    /* Dropdown styling */
+    .top-navigation {
+      position: absolute;
+      top: 40px;
+      right: 100px;
+      z-index: 100;
+    }
+    .dropbtn {
+      background-color: #CC0000;
+      color: white;
+      padding: 10px 30px;
+      font-size: 13px;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .dropdown-content {
+      display: none;
+      position: absolute;
+      right: 0;
+      background-color: #f9f9f9;
+      min-width: 160px;
+      box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+      z-index: 1;
+      border-radius: 4px;
+    }
+    .dropdown-content a {
+      color: black;
+      padding: 12px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 14px;
+    }
+    .dropdown-content a:hover {background-color: #f1f1f1;}
+    .dropdown:hover .dropdown-content {display: block;}
+    .dropdown:hover .dropbtn {background-color: #a30000;}
+
+    /* Gradio embed styling */
+    #gradio-app-container {
+      margin: 1px 0;
+      padding: 1px;
+      background-color: #f9f9f9;
+      border-radius: 1px;
+      border: 1px solid #ddd;
+    }
+    
+    :root {
+      --base-font-size: 14px;
+      --base-font-family: "RedHatText",Overpass,"Open Sans",Helvetica,Arial,sans-serif;
+      --theme-color: #CC0000;
+      --content-max-width: 75em;
+      --sidebar-width: 19rem;
+      --sidebar-nav-pagelink-background-image             : ;
+      --sidebar-nav-pagelink-background-image--active     : ;
+      --sidebar-nav-pagelink-background-image--collapse   : ;
+      --sidebar-nav-pagelink-background-image--loaded     : ;
+    }
+    .markdown-section iframe {
+      display: block;
+      max-width: none; /* prevent width constraint */
+      min-width: 1200px; /* or whatever fits your 3-box layout */
+    }
+
+    .iframe-scroll-container {
+      overflow-x: auto;
+      width: 100%;
+    }
+  </style>
+</body>
+</html>
