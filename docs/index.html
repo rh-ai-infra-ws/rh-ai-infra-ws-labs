@@ -35,7 +35,7 @@
         <input type="text" id="pass" name="password" placeholder="Your password">
       </div>
 
-      <div class="user-inputs">
+      <div class="user-inputs" style="display: none;">
         <label for="cdomain">Cluster Domain</label><br/>
         <input type="text" id="cdomain" name="clusterdomain" placeholder="Your cluster domain..">
       </div>
@@ -129,10 +129,10 @@
       //   alert('Please enter your password');
       //   return;
       // }
-      if (cdomain == '') {        
-        alert('Please enter a cluster domain');
-        return;
-      }
+      // if (cdomain == '') {        
+      //   alert('Please enter a cluster domain');
+      //   return;
+      // }
 
       console.info('INFO - setting user, cluster and git to :', uname, pass, cdomain, gitserver);
       localStorage.setItem('USER_NAME', uname);
@@ -171,6 +171,45 @@
       location.reload();
       // Update dropdown links after clearing storage
       populateDropdownLinks();
+    }
+
+    /**
+     * Replace <TOKEN> in rendered HTML. Docsify :include files are inlined after
+     * hook.beforeEach runs, so placeholders in embedded markdown must be replaced here.
+     * Replaces both literal <TOKEN> and &lt;TOKEN&gt; (fenced code blocks / Prism).
+     */
+    function escapeForHtmlText(s) {
+      if (s == null) {
+        return '';
+      }
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function applyDocPlaceholdersToHtml(html) {
+      if (!html) {
+        return html;
+      }
+      const tokens = [
+        { name: 'USER_NAME', key: 'USER_NAME' },
+        { name: 'PASSWORD', key: 'PASSWORD' },
+        { name: 'CLUSTER_DOMAIN', key: 'CLUSTER_DOMAIN' },
+        { name: 'PROMPT', key: 'PROMPT' },
+        { name: 'GIT_SERVER', key: 'GIT_SERVER' }
+      ];
+      var out = html;
+      for (var i = 0; i < tokens.length; i++) {
+        var t = tokens[i].name;
+        var raw = localStorage.getItem(tokens[i].key);
+        var v = (raw != null && raw !== '') ? raw : ('<' + t + '>');
+        var sub = escapeForHtmlText(v);
+        var reEsc = new RegExp('&lt;' + t + '&gt;', 'g');
+        out = out.replace(reEsc, sub);
+        out = out.split('<' + t + '>').join(sub);
+      }
+      return out;
     }
 
     // Custom Gradio component function
@@ -222,16 +261,9 @@
             })
 
             // Invoked each time before parsing the Markdown file.
-            const userName = localStorage.getItem('USER_NAME') ? localStorage.getItem('USER_NAME') : '<USER_NAME>';
-            const passWord = localStorage.getItem('PASSWORD') ? localStorage.getItem('PASSWORD') : '<PASSWORD>';
-            const prompt = localStorage.getItem('PROMPT') ? localStorage.getItem('PROMPT') : '<PROMPT>';
-            const clusterDomain = localStorage.getItem('CLUSTER_DOMAIN') ? localStorage.getItem('CLUSTER_DOMAIN') : '<CLUSTER_DOMAIN>';
-            const gitServer = localStorage.getItem('GIT_SERVER') ? localStorage.getItem('GIT_SERVER') : '<GIT_SERVER>';
-            return content.replaceAll('<USER_NAME>', userName)
-                    .replaceAll('<PASSWORD>', passWord)
-                    .replaceAll('<CLUSTER_DOMAIN>', clusterDomain)
-                    .replaceAll('<PROMPT>', prompt)
-                    .replaceAll('<GIT_SERVER>', gitServer)
+            // Per-page placeholders: only runs on the top-level .md, not on :include files.
+            // USER_NAME, CLUSTER_DOMAIN, etc. are applied in hook.afterEach (applyDocPlaceholdersToHtml).
+            return content
                     .replaceAll('<GRADIO_EMBED>', '<div id="gradio-app-container"></div>');
           });
 
@@ -251,7 +283,7 @@
             `;
 
           hook.afterEach(function(html) {
-            return html + footer;
+            return applyDocPlaceholdersToHtml(html) + footer;
           });
         }
       ],

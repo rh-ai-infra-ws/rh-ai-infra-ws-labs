@@ -16,9 +16,9 @@ Review the operator installation and OpenShift Data Science Project configuratio
 oc get pods -n redhat-ods-operator
 ```
 
-* A block similar to the following is expected to appear...
+* **Sample `oc get pods` output** (replica names and ages will differ):
 
-```bash
+```text
 NAME                              READY   STATUS    RESTARTS         AGE
 rhods-operator-58775b456f-5s7b9   1/1     Running   0                44h
 rhods-operator-58775b456f-l2fv9   1/1     Running   0                44h
@@ -27,7 +27,7 @@ rhods-operator-58775b456f-qknw7   1/1     Running   0                44h
 
 ## Red Hat OpenShift AI — DSP configuration
 
-Review the OpenShift Data Science configuration for KServe following the next procedure.
+Review the OpenShift Data Science configuration for KServe using the following procedure.
 
 1. Confirm that KServe is set to `Managed`:
 
@@ -49,22 +49,28 @@ oc explain dsc.spec.components.kserve
 oc get pod -n redhat-ods-applications -l app.kubernetes.io/name=kserve-controller-manager
 ```
 
-* A block similar to the following is expected to appear...
+* **Sample `oc get pod` output:**
 
-```bash
+```text
 NAME                                         READY   STATUS    RESTARTS   AGE
 kserve-controller-manager-7d4cbdff89-cb9wz   1/1     Running   0          44h
 ```
 
-?>It will be reviewed in next sections but it is important to take special attention to this pod. It represents the Control Plane of our inference services.
+?> This pod is the KServe **controller**: it reconciles `ServingRuntime` and `InferenceService` objects in the cluster. Later sections revisit it; for now, note that it is the control plane for inference CRs, not the model workload itself.
 
-## `serving.kserve.io/ServingRuntime` & `serving.kserve.io/InferenceService` 
+## Create a ServingRuntime and an InferenceService
 
-The core of the model serving is focuses on the KServe stack, specifically the interaction between the ServingRuntime Custom Resource Definition (CRD), which defines the execution environment or "template" for models and the InferenceService CRD, which acts as the primary orchestrator for deploying a specific model version. 
+The core of model serving **focuses** on the KServe stack—specifically the interaction between the **ServingRuntime** Custom Resource Definition (CRD), which defines the execution environment or *template* for models, and the **InferenceService** CRD, which is the main object for deploying a specific model and wiring it to that runtime.
 
 By examining these components, the review explains how the Predictor, Transformer, and Explainer work in tandem to provide scalable, high-performance inference endpoints that abstract away the underlying complexity of the Kubernetes networking and storage layers.
 
 1. Please create a `ServingRuntime` to make available a new runtime for deploying models and verify the respective configuration:
+
+```bash
+oc new-project <USER_NAME>
+```
+
+2. Create a `ServingRuntime` to expose a new runtime for model deployment:
 
 ```bash
 cat << 'EOF' | oc apply -n <USER_NAME> -f-
@@ -116,78 +122,38 @@ spec:
 EOF
 ```
 
-2. Verify the runtime was properly created:
+3. Verify the runtime was created.
 
 ```bash
 oc get ServingRuntime -n <USER_NAME>
 ```
 
-* A block similar to the following is expected to appear...
+* **Sample `oc get ServingRuntime` output** (column order may vary slightly by CLI version):
 
-```bash
-NAMESPACE        NAME                   DISABLED   MODELTYPE   CONTAINERS         AGE
-<USER_NAME>         rhaiis-cuda                       vLLM        kserve-container   118s
-```
-
-3. Once the runtime is created, the next step is to create an `InferenceService`. To begin, create a new namespace in Openshift:
-
-```bash
-oc new-project <USER_NAME>
+```text
+NAMESPACE     NAME         DISABLED   MODELTYPE   CONTAINERS         AGE
+<USER_NAME>      rhaiis-cuda             vLLM        kserve-container   118s
 ```
 
 4. As mentioned, it is time to create the inference service that links a specific model with a runtime, defining the main configuration for the service. Please create the following example and verify the configuration:
 
-```bash
-cat << 'EOF' | oc apply -n <USER_NAME> -f -
-apiVersion: serving.kserve.io/v1beta1
-kind: InferenceService
-metadata:
-  name: llama-vllm-single
-  annotations:
-    openshift.io/display-name: Llama 3.1 8B FP8 Single
-    security.opendatahub.io/enable-auth: "false"
-    serving.kserve.io/deploymentMode: RawDeployment
-    opendatahub.io/hardware-profile-name: gpu-profile
-    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
-spec:
-  predictor:
-    automountServiceAccountToken: false
-    maxReplicas: 1
-    minReplicas: 1
-    deploymentStrategy:
-      type: Recreate
-    model:
-      modelFormat:
-        name: vLLM
-      name: ''
-      resources:
-        limits:
-          cpu: '4'
-          memory: 8Gi
-          nvidia.com/gpu: '1'
-        requests:
-          cpu: '4'
-          memory: 8Gi
-          nvidia.com/gpu: '1'
-      runtime: rhaiis-cuda
-      storageUri: 'oci://registry.redhat.io/rhelai1/modelcar-llama-3-1-8b-instruct-fp8-dynamic:1.5'
-EOF
-```
+[vLLM manifest](_createvllm.md ':include')
 
-5. Verify the inference service was properly created:
+5. Review the kserve controller manager pod to understand what is happening under the hood:
 
 ```bash
-oc get InferenceService -n <USER_NAME>
+oc logs -n redhat-ods-applications -l app.kubernetes.io/name=kserve-controller-manager -f --tail=50
 ```
 
-* A block similar to the following is expected to appear...
+**Sample log lines** (JSON structure; messages and fields vary by version):
 
-```bash
-NAMESPACE        NAME                   DISABLED   MODELTYPE   CONTAINERS         AGE
-<USER_NAME>         rhaiis-cuda                       vLLM        kserve-container   118s
+```text
+{"level":"info","ts":"2026-04-23T07:39:58Z","logger":"v1beta1Controllers.InferenceService","msg":"Inference service deployment mode ","deployment mode ":"RawDeployment"}
+{"level":"info","ts":"2026-04-23T07:39:58Z","logger":"v1beta1Controllers.InferenceService","msg":"Reconciling inference service","apiVersion":"serving.kserve.io/v1beta1","isvc":"llama-vllm-single"}
+{"level":"info","ts":"2026-04-23T07:39:58Z","logger":"CaBundleConfigMapReconciler","msg":"Reconciling CaBundleConfigMap","namespace":"<USER_NAME>"}
+{"level":"info","ts":"2026-04-23T07:39:58Z","logger":"PredictorReconciler","msg":"Resolved container","container":"nil","podSpec":{"containers":[{"name":"kserve-container","image":"registry.redhat.io/rhaiis/vllm-cuda-rhel9:3.2.4","command":["python","-m","vllm.entrypoints.openai.api_server"],"args":["--port=8000","--model=/mnt/models","--served-model-name=llama-vllm-single","--max-model-len=16000","--disable-uvicorn-access-log"],"ports":[{"containerPort":8000,"protocol":"TCP"}],"env":[{"name":"HF_HOME","value":"/tmp/hf_home"},{"name":"HF_HUB_OFFLINE","value":"1"},{"name":"VLLM_NO_USAGE_STATS","value":"1"}],"resources":{"limits":{"cpu":"4","memory":"8Gi","nvidia.com/gpu":"1"},"requests":{"cpu":"4","memory":"8Gi","nvidia.com/gpu":"1"}}}],"automountServiceAccountToken":false}}
+{"level":"info","ts":"2026-04-23T07:39:58Z","logger":"ServiceReconciler","msg":"service reconcile","checkResult":2,"err":null}
 ```
-
-?> It takes a few minutes for the model to load and the state to change to "Ready". Leave this running in your terminal and continue reading the concepts below. We’ll come back to test the deployment at the end of this module.
 
 ## Inference service components
 
@@ -201,7 +167,7 @@ oc get pods -n <USER_NAME>
 
 * A block similar to the following is expected to appear...
 
-```bash
+```text
 NAME                                           READY   STATUS    RESTARTS   AGE
 llama-vllm-single-predictor-6b98f867cc-6kf2k   2/2     Running   0          5m
 ```
@@ -210,7 +176,7 @@ llama-vllm-single-predictor-6b98f867cc-6kf2k   2/2     Running   0          5m
 
 ![openshift-ai-inferenceservice-pod.png](images/openshift-ai-inferenceservice-pod.png)
 
-It is important to review the different containers and their mission:
+Review the roles of each container in this OCI modelcar–style setup:
 
 ?> `modelcar-init` -> The primary goal of the modelcar-init container is to pre-fetch and extract model files from an Open Container Initiative (OCI) registry before the model serving pod fully starts (Note that the modelcar-init container is only present for deployments using OCI registries; it is not used if your model is stored in an S3-compatible object storage or a Persistent Volume Claim (PVC), as those methods allow the main container to access the model files directly)
 
@@ -223,17 +189,18 @@ It is important to review the different containers and their mission:
 * Port forward to the pod
 
 ```bash
-oc port-forward deployment/llama-vllm-single-predictor 8000:8000 &
+oc port-forward -n <USER_NAME> deployment/llama-vllm-single-predictor 8000:8000
 ```
-* Check the list of models:
+
+* **List models** (OpenAI-compatible `v1/models`):
 
 ```bash
 curl http://localhost:8000/v1/models | jq .
 ```
 
-Example output:
+*Example JSON response* (`created` and permission IDs are runtime-generated):
 
-```bash
+```json
 {
   "object": "list",
   "data": [
@@ -291,8 +258,4 @@ Example output:
 ...
 ```
 
-!> It is important to clean-up the created content to continue
-
-```bash
-oc delete InferenceService llama-vllm-single -n <USER_NAME>
-```
+[vLLM manifest delete](_deletevllm.md ':include')
