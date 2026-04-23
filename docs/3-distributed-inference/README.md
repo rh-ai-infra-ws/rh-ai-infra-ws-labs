@@ -1,5 +1,4 @@
-
-# Module 3 - Distributed Inference
+# Openshift AI - Distributed Inference
 
 Distributed inference is the process of scaling and serving machine learning models—particularly massive Large Language Models (LLMs) with billions of parameters—across multiple hardware accelerators (such as GPUs) and cluster nodes in parallel. This approach is essential when a model is too large to fit into the memory of a single GPU or node, or when an application needs to handle high-scale, unpredictable real-world traffic efficiently. By distributing the inference workload, systems can significantly increase throughput, decrease latency, and maximize expensive hardware utilization. Key techniques and patterns used in distributed inference include:
 

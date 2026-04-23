@@ -4,9 +4,13 @@
 
 This workshop will provide a comprehensive review of the key aspects of OpenShift AI 🚀, focusing on the infrastructure topics essential for successful deployment. It is designed to help infrastructure engineers, platform engineers, data scientists, and other team members understand the underlying infrastructure components of the OpenShift AI solution. Crucially, the content will ensure participants can properly configure the solution for scaling in a production environment serving a large number of final clients 🤖
 
-## 1. OpenShift AI Operator & Components
+## 1. OpenShift AI - Operator & Components
 
-## 2. Accelerators Integration
+WIP
+
+## 2. OpenShift AI - Accelerators Integration
+
+WIP
 
 ## 3. Distributed Inference
 
