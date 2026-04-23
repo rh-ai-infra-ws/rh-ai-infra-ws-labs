@@ -4,7 +4,13 @@ In this module you’ll look at the vLLM metrics endpoint and run a short illust
 
 ## Deploy `llama-vllm` model
 
-Create the inference service:
+`modelcar-llama-3-1-8b-instruct-fp8-dynamic` is a highly optimized asset designed specifically for Red Hat Enterprise Linux AI (RHEL AI) and OpenShift AI. Here is a technical breakdown of what is inside this specific image:
+
+* llama-3-1-8b-instruct: The specific version of Meta's model (Llama 3.1, 8 Billion parameters, fine-tuned for instruction following).
+* fp8: This is a quantized version. While standard models use FP16 or BF16, FP8 uses 8-bit floating-point precision. It roughly halves the VRAM requirement and speeds up inference significantly on modern hardware (like NVIDIA H100/L4).
+* dynamic: This refers to Dynamic Quantization. The model can adjust its precision parameters during runtime to maintain higher accuracy while staying in the 8-bit format.
+
+Now, it is time o create the vLLM based inference service where the magic will happen:
 
 [vLLM manifest](_createvllm.md ':include')
 
@@ -297,17 +303,21 @@ You’ve established that 2 GPUs with naive scaling that doesn’t significantly
 [vLLM manifest LLM-d](_createllmd.md ':include')
 
 The three routing plugins and their weights:
+- `prefix-cache-scorer (weight 3)` -> Routes requests to the backend with the highest KV cache match for this prompt prefix — the primary tail-latency reducer
+- `queue-scorer (weight 2)` -> Balances queue depth across replicas
+- `active-request-scorer (weight 2)` -> Considers in-flight request count
 
-?>`prefix-cache-scorer (weight 3)` -> Routes requests to the backend with the highest KV cache match for this prompt prefix — the primary tail-latency reducer
-
-?>`queue-scorer (weight 2)` -> Balances queue depth across replicas
-
-?>`active-request-scorer (weight 2)` -> Considers in-flight request count
-
-2. Run the exact same GuideLLM configuration:
+2. Extrat the LLM-d inference service URL:
 
 ```bash
-LLMD_URL=$(oc get llminferenceservice llama-llm-d -n <USER_NAME> -o jsonpath='{.status.url}')
+oc get llminferenceservice llama-llm-d -n <USER_NAME> -o jsonpath='{.status.url}'
+```
+
+3. Run the exact same GuideLLM configuration including the respective LLM-d inference service URL: 
+
+!> IMPORTANT: Replace ${LLMD_URL} for the URL
+
+```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: batch/v1
 kind: Job
@@ -325,7 +335,7 @@ spec:
           image: ghcr.io/vllm-project/guidellm:latest
           env:
             - name: GUIDELLM_TARGET
-              value: "$\{LLMD_URL\}"
+              value: "${LLMD_URL}"     # <-------------------------------- Replace HERE !!!
             - name: GUIDELLM_PROFILE
               value: concurrent
             - name: GUIDELLM_RATE
