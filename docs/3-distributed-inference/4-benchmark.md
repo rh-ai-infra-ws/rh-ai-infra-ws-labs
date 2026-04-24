@@ -298,6 +298,10 @@ oc logs -f job/guidellm-vllm-single-2-replicas
 
 You’ve established that 2 GPUs with naive scaling that doesn’t significantly reduce P95 tail latency. Now, you deploy a llm-d’s prefix-cache-aware routing on the same hardware and run the identical benchmark.
 
+In terms of comparation with the previous inference service, the model remained the same but the performance gains came from the orchestration and routing logic of the system.
+
+![llmd-features.png](images/llmd-features.png)
+
 1. Create now the LLM-d distributed inference service to test this solution:
 
 [vLLM manifest LLM-d](_createllmd.md ':include')

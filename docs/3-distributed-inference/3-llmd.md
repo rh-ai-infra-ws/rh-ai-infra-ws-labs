@@ -2,6 +2,12 @@
 
 In Red Hat OpenShift AI, distributed inference is powered by the llm-d open-source framework, which serves as an intelligent orchestration layer above model servers like vLLM.
 
+llm-d handles different operational concerns, including runtime-aware scheduling, cache locality optimization, and intelligence across pods and nodes. Merging these into a single monolithic system would couple features that evolve at different speeds. Instead, this layered approach gives platform teams:
+
+* Flexibility: Swap runtimes or schedulers independently.
+* Extensibility: Integrate future innovations without redesigning the stack.
+* Clarity: Each layer has a clear responsibility.
+
 ## Create the LLMInferenceService
 
 1. First of all a GatewayClass and a Gateway for the inference service should be created.
