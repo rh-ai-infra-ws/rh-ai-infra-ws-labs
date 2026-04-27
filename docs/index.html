@@ -276,14 +276,15 @@
             }
           });
 
-          const footer = `<hr/>
-            <footer>
-            <span><a href="https://github.com/rhoai-genaiops"> 🤖 GenAIOps Git Repository</a> </span>
-            </footer>
-            `;
+          // const footer = `<hr/>
+          //   <footer>
+          //   <span><a href="https://github.com/rhoai-genaiops"> 🤖 GenAIOps Git Repository</a> </span>
+          //   </footer>
+          //   `;
 
           hook.afterEach(function(html) {
-            return applyDocPlaceholdersToHtml(html) + footer;
+            // return applyDocPlaceholdersToHtml(html) + footer;
+            return applyDocPlaceholdersToHtml(html);
           });
         }
       ],
