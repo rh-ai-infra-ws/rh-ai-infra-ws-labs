@@ -1,21 +1,51 @@
-# Openshift AI Infrastructure Workshop
+# 🧑‍🏫📚 OpenShift AI Infrastructure Workshop
 
-👋 Welcome to the Openshift AI Infrastructure Workshop! 👋
+## Slide Decks
+Slide decks are published along side the exercise instructions.
 
-This workshop will provide a comprehensive review of the key aspects of OpenShift AI 🚀, focusing on the infrastructure topics essential for successful deployment. It is designed to help infrastructure engineers, platform engineers, data scientists, and other team members understand the underlying infrastructure components of the OpenShift AI solution. Crucially, the content will ensure participants can properly configure the solution for scaling in a production environment serving a large number of final clients 🤖
+👨‍🏫 👉 [The Published Slides Live Here](https://rh-ai-infra-ws.github.io/rh-ai-infra-ws-labs) 👈 🧑‍💻
 
-## 1. OpenShift AI - Operator & Components
+## 🪄 Customize The Instructions
+The box at the top of the page allows you to load the docs with your team's variables prefilled. Fill in the following fields and click **Save**:
 
-WIP
+1. **Username** — e.g. `user1`. This value will be prefixed to things such as the namespaces we use.
+2. **Password** — your lab password.
+3. **Cluster Domain** — the `apps.*` portion of your OpenShift domain (see below).
+4. **System Prompt** - we will update this box as we go along with the exercises, you can keep empty for now.
 
-## 2. OpenShift AI - Accelerators Integration
+The values are persisted in your browser's local storage. Click **Clear** to reset all saved values.
 
-WIP
+* After saving, you should see your username and password below:
 
-## 3. Distributed Inference
+    ```bash
+    <USER_NAME>
+    <PASSWORD>
+    ```
 
-**Production Inference with Openshift AI** is a half day module focused on achieving scalable and high-performance inference. The curriculum is structured around four main topics: Fundamentals of Model Serving, Serving GenAI and Predictive models, LLMs Distributed Inference, and Benchmark. The foundational section introduces Red Hat OpenShift AI (RHOAI) as a comprehensive model serving platform that leverages KServe to simplify deploying and managing AI models by handling infrastructure, autoscaling, monitoring, and lifecycle management for production-ready environments. This transformation turns static model artifacts into live, accessible endpoints that applications can use to generate predictions or other content.
+* For the cluster domain, enter only the `apps.*` portion of your OpenShift domain. For example, if your console address is <code class="language-yaml">https://console-openshift-console.apps.hivec.sandbox1243.opentlc.com/</code>
+ then enter `apps.hivec.sandbox1243.opentlc.com` in the cluster domain field.
 
-## Author 
+    You should see your cluster domain below:
 
-Asier Cidon @RedHat
+    ```bash
+    <CLUSTER_DOMAIN>
+    ```
+
+## 🦆 Conventions
+When running through the exercises, we've tried to call out where things need replacing, especially in Notebooks. If you saved your details above, most `<PLACEHOLDER>` values will be filled in automatically. If any remain, replace them manually with your actual values. For example, if your username is `user1` and you see `<USER_NAME>`, replace it with `user1` like so:
+    <div class="highlight" style="background: #f7f7f7">
+    <pre><code class="language-bash">
+    name: &lt;USER_NAME&gt;
+    # ^ this becomes
+    name: user1
+    </code></pre></div>
+
+There are lots of code blocks for you to copy and paste. They have a little ✂️ icon on the right when you move your cursor over the code block.
+
+```bash
+    echo "like this one :)"
+```
+
+**Important:** Not all code blocks are meant to be copied. Blocks without the ✂️ icon are **expected output**. Use them to validate your results or YAML against the given block.
+
+Alright, let's get started! Head over to the first exercise and begin your GenAIOps journey! 🏃💨

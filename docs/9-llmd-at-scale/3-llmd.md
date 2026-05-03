@@ -1,16 +1,16 @@
-# LLMs Distributed Inference
+# 🔧 Deploying llm-d
 
 In Red Hat OpenShift AI, distributed inference is powered by the llm-d open-source framework, which serves as an intelligent orchestration layer above model servers like vLLM.
 
 llm-d handles different operational concerns, including runtime-aware scheduling, cache locality optimization, and intelligence across pods and nodes. Merging these into a single monolithic system would couple features that evolve at different speeds. Instead, this layered approach gives platform teams:
 
-* Flexibility: Swap runtimes or schedulers independently.
-* Extensibility: Integrate future innovations without redesigning the stack.
-* Clarity: Each layer has a clear responsibility.
+- **Flexibility** — swap runtimes or schedulers independently
+- **Extensibility** — integrate future innovations without redesigning the stack
+- **Clarity** — each layer has a clear responsibility
 
 ## Create the LLMInferenceService
 
-1. First of all a GatewayClass and a Gateway for the inference service should be created.
+1. Create a `GatewayClass` and a `Gateway` for the inference service:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -43,7 +43,7 @@ EOF
 
 [vLLM manifest LLM-d](_createllmd.md ':include')
 
-3.  Once the LLMInferenceService shows Ready, get the inference URL:
+3. Once the `LLMInferenceService` shows `Ready`, get the inference URL:
 
 ```bash
 # Get the llm-d inference URL

@@ -8,7 +8,7 @@ Review the operator installation and OpenShift Data Science Project configuratio
 
 1. Open the [OpenShift console](https://console-openshift-console.<CLUSTER_DOMAIN>) and confirm that the OpenShift AI operator is installed: **Ecosystem** → **Installed Operators** → **Red Hat OpenShift AI**
 
-![openshift-ai-operator.png](images/openshift-ai-operator.png)
+![openshift-ai-operator.png](../4-distributed-inference/images/openshift-ai-operator.png)
 
 2. In addition to the console, verify the operator by checking its pods in the target namespace:
 
@@ -157,7 +157,7 @@ oc logs -n redhat-ods-applications -l app.kubernetes.io/name=kserve-controller-m
 
 ## Inference service components
 
-When an `InferenceService` is created, it is possible to see specific components and signal that represent the new inference service creation. Please follow next steps to understand the staff behind the scenes.
+When an `InferenceService` is created, it is possible to see specific components and signal that represent the new inference service creation. Please follow the next steps to understand what happens behind the scenes.
 
 1. Review inference services pods:
 
@@ -172,9 +172,9 @@ NAME                                           READY   STATUS    RESTARTS   AGE
 llama-vllm-single-predictor-6b98f867cc-6kf2k   2/2     Running   0          5m
 ```
 
-2. Open the [OpenShift console](https://console-openshift-console.<CLUSTER_DOMAIN>) and see also the containers inside the pod: **Worloads** → **Pods** → **Logs (tab)**
+2. Open the [OpenShift console](https://console-openshift-console.<CLUSTER_DOMAIN>) and see also the containers inside the pod: **Workloads** → **Pods** → **Logs (tab)**
 
-![openshift-ai-inferenceservice-pod.png](images/openshift-ai-inferenceservice-pod.png)
+![openshift-ai-inferenceservice-pod.png](../4-distributed-inference/images/openshift-ai-inferenceservice-pod.png)
 
 Review the roles of each container in this OCI modelcar–style setup:
 
