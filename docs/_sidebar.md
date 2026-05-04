@@ -3,6 +3,8 @@
 * [Module 1 — OpenShift AI Operator & Components](1-ocp-ai-operator-components/README.md)
 
 * [Module 2 — Accelerators Integration](2-accelerators-integration/README.md)
+  * [2.1. Enabling Accelerators](2-accelerators-integration/1-enabling-accelerators.md)
+  * [2.2. GPU-As-A-Service](2-accelerators-integration/2-gpu-as-a-service.md)
 
 * [Module 3 — Distributed Inference](3-distributed-inference/README.md)
   * [3.1. Review Openshift AI Components](3-distributed-inference/1-review-ocp-ai.md)
