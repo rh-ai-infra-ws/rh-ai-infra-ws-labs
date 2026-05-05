@@ -221,10 +221,12 @@ nfd-master-b697bbdb8-pcgfl                1/1     Running   0          2m
 nfd-worker-csmds                          1/1     Running   0          2m
 ```
 
+?> nfd-worker-csmds is created for each worker node 
+
 7. Review the controller-manager pod logs:
 
 ```bash
-oc logs -n openshift-nfd -l control-plane=controller-manager -t 1000
+oc logs -n openshift-nfd -l control-plane=controller-manager --tail=1000
 ```
 
 ?> A successful deployment shows similar logs like that
@@ -276,20 +278,87 @@ oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
 
 ?> A successful deployment shows a similar output
 
-```text
-...
-  "nvidia.com/gpu-driver-upgrade-state": "upgrade-done",
-  "nvidia.com/gpu.deploy.container-toolkit": "true",
-  "nvidia.com/gpu.deploy.dcgm": "true",
-  "nvidia.com/gpu.deploy.dcgm-exporter": "true",
-  "nvidia.com/gpu.deploy.device-plugin": "true",
-  "nvidia.com/gpu.deploy.driver": "true",
-  "nvidia.com/gpu.deploy.gpu-feature-discovery": "true",
-  "nvidia.com/gpu.deploy.node-status-exporter": "true",
-  "nvidia.com/gpu.deploy.nvsm": "",
-  "nvidia.com/gpu.deploy.operator-validator": "true",
-  "nvidia.com/gpu.present": "true",
-...
+```json
+{
+  "beta.kubernetes.io/arch": "amd64",
+  "beta.kubernetes.io/instance-type": "g6.12xlarge",
+  "beta.kubernetes.io/os": "linux",
+  "failure-domain.beta.kubernetes.io/region": "us-east-2",
+  "failure-domain.beta.kubernetes.io/zone": "us-east-2b",
+  "feature.node.kubernetes.io/cpu-cpuid.ADX": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.AESNI": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.AVX": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.AVX2": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.CLZERO": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.CMPXCHG8": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.EFER_LMSLE_UNS": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FMA3": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FP256": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FXSR": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FXSROPT": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.HYPERVISOR": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBPB": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBPB_BRTYPE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBRS": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBRS_PREFERRED": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBRS_PROVIDES_SMP": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.LAHF": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.MCOMMIT": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.MOVBE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.MOVU": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.OSXSAVE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.PSFD": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.RDPRU": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SBPB": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SHA": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SPEC_CTRL_SSBD": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SSE4A": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.STIBP": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.STIBP_ALWAYSON": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SYSCALL": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SYSEE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.TOPEXT": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.TSA_VERW_CLEAR": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.VAES": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.VPCLMULQDQ": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.WBNOINVD": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.X87": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XGETBV1": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XSAVE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XSAVEC": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XSAVEOPT": "true",
+  "feature.node.kubernetes.io/cpu-hardware_multithreading": "true",
+  "feature.node.kubernetes.io/cpu-model.family": "25",
+  "feature.node.kubernetes.io/cpu-model.id": "1",
+  "feature.node.kubernetes.io/cpu-model.vendor_id": "AMD",
+  "feature.node.kubernetes.io/kernel-config.NO_HZ": "true",
+  "feature.node.kubernetes.io/kernel-config.NO_HZ_FULL": "true",
+  "feature.node.kubernetes.io/kernel-selinux.enabled": "true",
+  "feature.node.kubernetes.io/kernel-version.full": "5.14.0-570.107.1.el9_6.x86_64",
+  "feature.node.kubernetes.io/kernel-version.major": "5",
+  "feature.node.kubernetes.io/kernel-version.minor": "14",
+  "feature.node.kubernetes.io/kernel-version.revision": "0",
+  "feature.node.kubernetes.io/pci-10de.present": "true",
+  "feature.node.kubernetes.io/pci-1d0f.present": "true",
+  "feature.node.kubernetes.io/rdma.available": "true",
+  "feature.node.kubernetes.io/storage-nonrotationaldisk": "true",
+  "feature.node.kubernetes.io/system-os_release.ID": "rhel",
+  "feature.node.kubernetes.io/system-os_release.OPENSHIFT_VERSION": "4.21",
+  "feature.node.kubernetes.io/system-os_release.OSTREE_VERSION": "9.6.20260414-0",
+  "feature.node.kubernetes.io/system-os_release.VERSION_ID": "9.6",
+  "feature.node.kubernetes.io/system-os_release.VERSION_ID.major": "9",
+  "feature.node.kubernetes.io/system-os_release.VERSION_ID.minor": "6",
+  "kubernetes.io/arch": "amd64",
+  "kubernetes.io/hostname": "ip-10-0-61-106.us-east-2.compute.internal",
+  "kubernetes.io/os": "linux",
+  "node-role.kubernetes.io/worker": "",
+  "node.kubernetes.io/instance-type": "g6.12xlarge",
+  "node.openshift.io/os_id": "rhel",
+  "topology.ebs.csi.aws.com/zone": "us-east-2b",
+  "topology.k8s.aws/zone-id": "use2-az2",
+  "topology.kubernetes.io/region": "us-east-2",
+  "topology.kubernetes.io/zone": "us-east-2b"
+}
 ```
 
 
@@ -337,7 +406,7 @@ EOF
 ```bash
 CHANNEL=$(oc get packagemanifest gpu-operator-certified -n openshift-marketplace -o jsonpath='{.status.defaultChannel}')
 STARTING_CSV=$(oc get packagemanifests/gpu-operator-certified -n openshift-marketplace -ojson | jq -r '.status.channels[] | select(.name == "'$CHANNEL'") | .currentCSV')
-cat << 'EOF' | oc apply -f-
+cat << EOF | oc apply -f-
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -384,3 +453,235 @@ vi /tmp/clusterpolicy.json
      "version": "570.172.08"
 }
 ```
+
+7. Apply the cluster policy file:
+
+```bash
+oc apply -f /tmp/clusterpolicy.json
+```
+
+
+8. To verify that the Operator deployment is successful, run:
+
+```bash
+oc get pods -n nvidia-gpu-operator
+```
+
+?> A successful deployment shows a Running status
+
+```text
+NAME                            READY   STATUS    RESTARTS   AGE
+gpu-feature-discovery-2bwt6                    1/1     Running     0               8m15s
+gpu-operator-6d8475969f-245wl                  1/1     Running     0               10m
+nvidia-container-toolkit-daemonset-2hbq8       1/1     Running     0               8m15s
+nvidia-cuda-validator-97qdx                    0/1     Completed   0               3m51s
+nvidia-dcgm-exporter-k4sht                     1/1     Running     2 (3m26s ago)   8m15s
+nvidia-dcgm-nczv4                              1/1     Running     0               8m15s
+nvidia-device-plugin-daemonset-v6rrc           1/1     Running     0               8m15s
+nvidia-driver-daemonset-9.6.20260414-0-9zt8p   2/2     Running     0               8m24s
+nvidia-node-status-exporter-7b7j6              1/1     Running     0               8m21s
+nvidia-operator-validator-rkc7f                1/1     Running     0               8m15s
+```
+
+?>gpu-feature-discovery, nvidia-device-plugin-daemonset, nvidia-node-status-exporter, nvidia-dcgm, nvidia-dcgm-exporter and nvidia-operator-validator are created for each worker node 
+
+9. Review the nfd-worker pod logs:
+
+```bash
+oc logs -n openshift-nfd -l app=nfd-worker --tail=1000
+```
+
+?> A successful deployment shows a similar output
+
+```text
+I0505 13:11:07.447011       1 nfd-worker.go:667] "updating NodeFeature object" nodefeature="openshift-nfd/ip-10-0-15-11.us-east-2.compute.internal"
+```
+
+10. Review the nvidia components pods logs:
+
+**gpu-feature-discovery**: Interacting directly with the NVIDIA software components to identify and expose the highly specific characteristics of the GPUs via labels
+
+```bash
+oc logs -n nvidia-gpu-operator -l app=gpu-feature-discovery --tail=1000
+```
+
+```text
+...
+I0505 13:15:32.765284       1 factory.go:58] Using NVML manager
+I0505 13:15:32.765316       1 main.go:214] Start running
+2026/05/05 13:15:32 WARNING: unable to detect IOMMU FD for [0000:38:00.0 open /sys/bus/pci/devices/0000:38:00.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/05/05 13:15:32 WARNING: unable to detect IOMMU FD for [0000:3a:00.0 open /sys/bus/pci/devices/0000:3a:00.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/05/05 13:15:32 WARNING: unable to detect IOMMU FD for [0000:3c:00.0 open /sys/bus/pci/devices/0000:3c:00.0/vfio-dev: no such file or directory]: %!v(MISSING)
+2026/05/05 13:15:32 WARNING: unable to detect IOMMU FD for [0000:3e:00.0 open /sys/bus/pci/devices/0000:3e:00.0/vfio-dev: no such file or directory]: %!v(MISSING)
+I0505 13:15:32.904196       1 main.go:281] Creating Labels
+I0505 13:15:32.904223       1 output.go:91] Writing labels to output file /etc/kubernetes/node-feature-discovery/features.d/gfd
+...
+```
+
+**nvidia-device-plugin-daemonset**: Exposing the physical GPU hardware to the cluster
+
+```bash
+oc logs -n nvidia-gpu-operator -l app=nvidia-device-plugin-daemonset --tail=1000
+```
+
+```text
+...
+time="2026-05-05T13:15:33Z" level=info msg="Using driver version 570.172.08"
+...
+I0505 13:15:33.892866       1 server.go:198] Starting GRPC server for 'nvidia.com/gpu'
+I0505 13:15:33.894335       1 server.go:142] Starting to serve 'nvidia.com/gpu' on /var/lib/kubelet/device-plugins/nvidia-gpu.sock
+I0505 13:15:33.896883       1 server.go:149] Registered device plugin for 'nvidia.com/gpu' with Kubelet
+...
+```
+
+**nvidia-node-status-exporter**: Exporting status information about the NVIDIA GPUs on the host node
+
+```bash
+oc logs -n nvidia-gpu-operator -l app=nvidia-node-status-exporter --tail=1000
+```
+
+```text
+...
+time="2026-05-05T13:15:55Z" level=info msg="metrics: StatusFile: 'plugin-ready' is ready"
+time="2026-05-05T13:15:55Z" level=info msg="Attempting to validate a pre-installed driver on the host"
+time="2026-05-05T13:15:55Z" level=info msg="metrics: StatusFile: 'cuda-ready' is ready"
+time="2026-05-05T13:15:55Z" level=info msg="No pre-installed driver detected on the host: no 'nvidia-smi' file present on the host: lstat /host/usr/bin/nvidia-smi: no such file or directory"
+time="2026-05-05T13:15:55Z" level=info msg="Validating containerized driver installation"
+time="2026-05-05T13:15:55Z" level=info msg="Driver is not pre-installed on the host and is managed by GPU Operator. Checking driver container status."
+time="2026-05-05T13:15:55Z" level=info msg="Attempting to validate a driver container installation"
+time="2026-05-05T13:15:55Z" level=info msg="metrics: DevicePlugin validation: found 4 GPUs exposed by the DevicePlugin"
+...
+```
+
+11. Finally, review again the lables defined for the node with all the GPU configuration included:
+
+```bash
+oc get nodes
+oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
+```
+
+?> A successful deployment shows a similar output
+
+
+```json
+{
+  "beta.kubernetes.io/arch": "amd64",
+  "beta.kubernetes.io/instance-type": "g6.12xlarge",
+  "beta.kubernetes.io/os": "linux",
+  "failure-domain.beta.kubernetes.io/region": "us-east-2",
+  "failure-domain.beta.kubernetes.io/zone": "us-east-2b",
+  "feature.node.kubernetes.io/cpu-cpuid.ADX": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.AESNI": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.AVX": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.AVX2": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.CLZERO": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.CMPXCHG8": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.EFER_LMSLE_UNS": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FMA3": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FP256": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FXSR": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.FXSROPT": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.HYPERVISOR": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBPB": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBPB_BRTYPE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBRS": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBRS_PREFERRED": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.IBRS_PROVIDES_SMP": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.LAHF": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.MCOMMIT": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.MOVBE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.MOVU": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.OSXSAVE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.PSFD": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.RDPRU": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SBPB": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SHA": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SPEC_CTRL_SSBD": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SSE4A": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.STIBP": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.STIBP_ALWAYSON": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SYSCALL": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.SYSEE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.TOPEXT": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.TSA_VERW_CLEAR": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.VAES": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.VPCLMULQDQ": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.WBNOINVD": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.X87": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XGETBV1": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XSAVE": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XSAVEC": "true",
+  "feature.node.kubernetes.io/cpu-cpuid.XSAVEOPT": "true",
+  "feature.node.kubernetes.io/cpu-hardware_multithreading": "true",
+  "feature.node.kubernetes.io/cpu-model.family": "25",
+  "feature.node.kubernetes.io/cpu-model.id": "1",
+  "feature.node.kubernetes.io/cpu-model.vendor_id": "AMD",
+  "feature.node.kubernetes.io/kernel-config.NO_HZ": "true",
+  "feature.node.kubernetes.io/kernel-config.NO_HZ_FULL": "true",
+  "feature.node.kubernetes.io/kernel-selinux.enabled": "true",
+  "feature.node.kubernetes.io/kernel-version.full": "5.14.0-570.107.1.el9_6.x86_64",
+  "feature.node.kubernetes.io/kernel-version.major": "5",
+  "feature.node.kubernetes.io/kernel-version.minor": "14",
+  "feature.node.kubernetes.io/kernel-version.revision": "0",
+  "feature.node.kubernetes.io/pci-10de.present": "true",                             <--------------- IMPORTANT - NFD Operator
+  "feature.node.kubernetes.io/pci-1d0f.present": "true",                             <--------------- IMPORTANT - NFD Operator
+  "feature.node.kubernetes.io/rdma.available": "true",
+  "feature.node.kubernetes.io/storage-nonrotationaldisk": "true",
+  "feature.node.kubernetes.io/system-os_release.ID": "rhel",
+  "feature.node.kubernetes.io/system-os_release.OPENSHIFT_VERSION": "4.21",
+  "feature.node.kubernetes.io/system-os_release.OSTREE_VERSION": "9.6.20260414-0",
+  "feature.node.kubernetes.io/system-os_release.VERSION_ID": "9.6",
+  "feature.node.kubernetes.io/system-os_release.VERSION_ID.major": "9",
+  "feature.node.kubernetes.io/system-os_release.VERSION_ID.minor": "6",
+  "kubernetes.io/arch": "amd64",
+  "kubernetes.io/hostname": "ip-10-0-61-106.us-east-2.compute.internal",
+  "kubernetes.io/os": "linux",
+  "node-role.kubernetes.io/worker": "",
+  "node.kubernetes.io/instance-type": "g6.12xlarge",
+  "node.openshift.io/os_id": "rhel",
+  "nvidia.com/cuda.driver-version.full": "570.172.08",
+  "nvidia.com/cuda.driver-version.major": "570",
+  "nvidia.com/cuda.driver-version.minor": "172",
+  "nvidia.com/cuda.driver-version.revision": "08",
+  "nvidia.com/cuda.driver.major": "570",
+  "nvidia.com/cuda.driver.minor": "172",
+  "nvidia.com/cuda.driver.rev": "08",
+  "nvidia.com/cuda.runtime-version.full": "12.8",
+  "nvidia.com/cuda.runtime-version.major": "12",
+  "nvidia.com/cuda.runtime-version.minor": "8",
+  "nvidia.com/cuda.runtime.major": "12",
+  "nvidia.com/cuda.runtime.minor": "8",
+  "nvidia.com/gfd.timestamp": "1777986932",
+  "nvidia.com/gpu-driver-upgrade-state": "upgrade-done",
+  "nvidia.com/gpu.compute.major": "8",
+  "nvidia.com/gpu.compute.minor": "9",
+  "nvidia.com/gpu.count": "4",                                                     <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.deploy.container-toolkit": "true",
+  "nvidia.com/gpu.deploy.dcgm": "true",
+  "nvidia.com/gpu.deploy.dcgm-exporter": "true",
+  "nvidia.com/gpu.deploy.device-plugin": "true",
+  "nvidia.com/gpu.deploy.driver": "true",
+  "nvidia.com/gpu.deploy.gpu-feature-discovery": "true",
+  "nvidia.com/gpu.deploy.node-status-exporter": "true",
+  "nvidia.com/gpu.deploy.nvsm": "",
+  "nvidia.com/gpu.deploy.operator-validator": "true",
+  "nvidia.com/gpu.family": "ada-lovelace",                                               <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.machine": "g6.12xlarge",
+  "nvidia.com/gpu.memory": "23034",
+  "nvidia.com/gpu.mode": "compute",
+  "nvidia.com/gpu.present": "true",                                                 <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.product": "NVIDIA-L4",                                            <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.replicas": "1",
+  "nvidia.com/gpu.sharing-strategy": "none",
+  "nvidia.com/mig.capable": "false",
+  "nvidia.com/mig.strategy": "single",
+  "nvidia.com/mps.capable": "false",
+  "nvidia.com/vgpu.present": "false",
+  "topology.ebs.csi.aws.com/zone": "us-east-2b",
+  "topology.k8s.aws/zone-id": "use2-az2",
+  "topology.kubernetes.io/region": "us-east-2",
+  "topology.kubernetes.io/zone": "us-east-2b"
+}
+```
+
+The cluster is now fully configured and optimized with the necessary NVIDIA drivers, resource management tools, and runtime support to effectively utilize NVIDIA GPUs. This comprehensive readiness ensures a robust platform capable of deploying and scaling a wide range of GPU-accelerated workloads, including Deep Learning, HPC, and data analytics.
