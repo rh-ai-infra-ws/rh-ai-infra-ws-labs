@@ -15,7 +15,3 @@ The I**Accelerators Integration with Openshift AI moduleI** is a core part of th
 ## 3. Distributed Inference
 
 **Production Inference with Openshift AI** is a half day module focused on achieving scalable and high-performance inference. The curriculum is structured around four main topics: Fundamentals of Model Serving, Serving GenAI and Predictive models, LLMs Distributed Inference, and Benchmark. The foundational section introduces Red Hat OpenShift AI (RHOAI) as a comprehensive model serving platform that leverages KServe to simplify deploying and managing AI models by handling infrastructure, autoscaling, monitoring, and lifecycle management for production-ready environments. This transformation turns static model artifacts into live, accessible endpoints that applications can use to generate predictions or other content.
-
-## Author 
-
-Asier Cidon @RedHat
