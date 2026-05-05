@@ -443,6 +443,8 @@ STARTING_CSV=$(oc get packagemanifests/gpu-operator-certified -n openshift-marke
 oc get csv -n nvidia-gpu-operator $STARTING_CSV -o jsonpath='{.metadata.annotations.alm-examples}' | jq '.[0]' > /tmp/clusterpolicy.json
 ```
 
+?> You can see an example in the following [link](2-accelerators-integration/_clusterpolicy-example.md)
+
 6. Modify the clusterpolicy.json file to specify the following configuration aspects:
 
 ```bash
@@ -685,3 +687,32 @@ oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
 ```
 
 The cluster is now fully configured and optimized with the necessary NVIDIA drivers, resource management tools, and runtime support to effectively utilize NVIDIA GPUs. This comprehensive readiness ensures a robust platform capable of deploying and scaling a wide range of GPU-accelerated workloads, including Deep Learning, HPC, and data analytics.
+
+## Monitoring GPUs
+
+The GPU Operator exposes GPU telemetry for Prometheus by using the NVIDIA DCGM Exporter. These metrics can be visualized using a monitoring dashboard based on Grafana.
+
+1. Download the latest NVIDIA DCGM Exporter Dashboard from the DCGM Exporter repository on GitHub:
+
+```bash
+curl -LfO https://github.com/NVIDIA/dcgm-exporter/raw/main/grafana/dcgm-exporter-dashboard.json
+```
+
+?> You can see an example in the following [link](2-accelerators-integration/_dcgm-exporter-dashboard.md)
+
+2. Create a config map from the downloaded file in the openshift-config-managed namespace:
+
+```bash
+oc create configmap nvidia-dcgm-exporter-dashboard -n openshift-config-managed --from-file=dcgm-exporter-dashboard.json
+```
+
+3. Label the config map to expose the dashboard in the Administrator perspective of the web console:
+
+```bash
+oc label configmap nvidia-dcgm-exporter-dashboard -n openshift-config-managed "console.openshift.io/dashboard=true"
+```
+
+4. Verify the new dashboard in the OpenShift Container Platform web console navigating to **Observe -> Dashboards** and select NVIDIA DCGM Exporter Dashboard from the Dashboard list.
+
+![nvidia-gpu-dashboards.png](images/nvidia-gpu-dashboards.png)
+

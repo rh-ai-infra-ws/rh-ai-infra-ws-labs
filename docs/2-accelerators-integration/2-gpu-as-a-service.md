@@ -8,6 +8,11 @@ GPU-as-a-Service is a fundamental approach for maximizing the efficiency and sec
 
 - Enhanced Scheduling: Intelligent scheduling tools like Kueue further optimize resource management. Kueue actively manages resource quotas and prioritizes mission-critical workloads, ensuring optimal utilization and guaranteed access for a diverse range of AI/ML tasks.
 
+## Intelligent GPU orchestration
+
+A key strategy is needed to prevent non-AI workloads from inadvertently using GPU nodes, while also allowing users to select specific hardware profiles (such as an NVIDIA L4 or A100) to match their model's computational demands. Red Hat OpenShift, together with Red Hat OpenShift AI, provides the necessary mechanisms—including node taints, tolerations, custom labels and hardware profiles to define and enforce a solution for this challenge.
+
+
 ## Multi-Instance GPU (MIG)
 
 ## Hardware Profiles
