@@ -623,8 +623,8 @@ oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
   "feature.node.kubernetes.io/kernel-version.major": "5",
   "feature.node.kubernetes.io/kernel-version.minor": "14",
   "feature.node.kubernetes.io/kernel-version.revision": "0",
-  "feature.node.kubernetes.io/pci-10de.present": "true",                             <--------------- IMPORTANT - NFD Operator
-  "feature.node.kubernetes.io/pci-1d0f.present": "true",                             <--------------- IMPORTANT - NFD Operator
+  "feature.node.kubernetes.io/pci-10de.present": "true", <--------------- IMPORTANT - NFD Operator
+  "feature.node.kubernetes.io/pci-1d0f.present": "true", <--------------- IMPORTANT - NFD Operator
   "feature.node.kubernetes.io/rdma.available": "true",
   "feature.node.kubernetes.io/storage-nonrotationaldisk": "true",
   "feature.node.kubernetes.io/system-os_release.ID": "rhel",
@@ -655,7 +655,7 @@ oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
   "nvidia.com/gpu-driver-upgrade-state": "upgrade-done",
   "nvidia.com/gpu.compute.major": "8",
   "nvidia.com/gpu.compute.minor": "9",
-  "nvidia.com/gpu.count": "4",                                                     <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.count": "4",  <--------------- IMPORTANT - GPU Feature Discovery (GFD)
   "nvidia.com/gpu.deploy.container-toolkit": "true",
   "nvidia.com/gpu.deploy.dcgm": "true",
   "nvidia.com/gpu.deploy.dcgm-exporter": "true",
@@ -665,12 +665,12 @@ oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
   "nvidia.com/gpu.deploy.node-status-exporter": "true",
   "nvidia.com/gpu.deploy.nvsm": "",
   "nvidia.com/gpu.deploy.operator-validator": "true",
-  "nvidia.com/gpu.family": "ada-lovelace",                                               <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.family": "ada-lovelace",  <--------------- IMPORTANT - GPU Feature Discovery (GFD)
   "nvidia.com/gpu.machine": "g6.12xlarge",
   "nvidia.com/gpu.memory": "23034",
   "nvidia.com/gpu.mode": "compute",
-  "nvidia.com/gpu.present": "true",                                                 <--------------- IMPORTANT - GPU Feature Discovery (GFD)
-  "nvidia.com/gpu.product": "NVIDIA-L4",                                            <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.present": "true",       <--------------- IMPORTANT - GPU Feature Discovery (GFD)
+  "nvidia.com/gpu.product": "NVIDIA-L4",  <--------------- IMPORTANT - GPU Feature Discovery (GFD)
   "nvidia.com/gpu.replicas": "1",
   "nvidia.com/gpu.sharing-strategy": "none",
   "nvidia.com/mig.capable": "false",
