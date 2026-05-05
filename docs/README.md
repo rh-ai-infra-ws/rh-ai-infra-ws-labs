@@ -10,7 +10,7 @@ WIP
 
 ## 2. OpenShift AI - Accelerators Integration
 
-WIP
+The I**Accelerators Integration with Openshift AI moduleI** is a core part of the OpenShift AI Infrastructure Workshop that focuses on managing, integrating, and optimizing specialized hardware to accelerate AI/ML workloads like NLP and deep learning. Building on the foundational concepts of hardware enablement, the course details how organizations can transition from basic GPU provisioning to a highly optimized GPU-as-a-Service (GPUaaS) architecture.
 
 ## 3. Distributed Inference
 
