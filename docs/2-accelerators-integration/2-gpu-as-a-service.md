@@ -1,4 +1,4 @@
-# GPU As A Service
+# 👨🏼‍💻 GPU As A Service
 
 GPU-as-a-Service is a fundamental approach for maximizing the efficiency and security of specialized AI hardware. It facilitates secure and effective multi-tenancy by centralizing resources and utilizing advanced scheduling mechanisms.
 

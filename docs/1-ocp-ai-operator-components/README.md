@@ -1,3 +1,3 @@
-# OpenShift AI - Operator & Components
+# 🤖 OpenShift AI Operator & Components
 
 WIP

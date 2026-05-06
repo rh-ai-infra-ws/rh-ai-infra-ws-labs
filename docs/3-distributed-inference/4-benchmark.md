@@ -1,4 +1,4 @@
-# Benchmark
+# 🥇 Benchmark
 
 In this module you’ll look at the vLLM metrics endpoint and run a short illustrative benchmark to see how an inference service responses in a high performance scenario.
 

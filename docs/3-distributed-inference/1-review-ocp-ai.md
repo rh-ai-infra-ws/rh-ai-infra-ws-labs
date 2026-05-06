@@ -1,4 +1,4 @@
-# Review OpenShift AI Components
+# ⚙️ Review OpenShift AI Components
 
 This module reviews the end-to-end technical workflow for establishing a robust model-serving architecture within Red Hat OpenShift AI (RHOAI). It begins with the foundational infrastructure, detailing the necessary Operators (such as the GPU and Node Feature Discovery operators) and Data Science Project (DSP) configurations required to prep the environment for machine learning workloads.
 

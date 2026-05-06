@@ -1,4 +1,4 @@
-# Enabling Accelerators
+# 🔧 Enabling Accelerators
 
 Enabling the utilization of these accelerators within a containerized environment, particularly on a platform like Kubernetes or OpenShift, requires a set of foundational components working in concert. The main components for enabling accelerators include:
 
