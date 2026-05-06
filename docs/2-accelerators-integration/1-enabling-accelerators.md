@@ -449,10 +449,12 @@ oc get csv -n nvidia-gpu-operator $STARTING_CSV -o jsonpath='{.metadata.annotati
 
 ```bash
 vi /tmp/clusterpolicy.json
-"driver": {
-     "repository": "nvcr.io/nvidia",
-     "image": "driver",
-     "version": "570.172.08"
+...
+    "driver": {
+      "repository": "nvcr.io/nvidia",  #<--- Add this line
+      "image": "driver",               #<--- Add this line
+      "version": "570.172.08",         #<--- Add this line
+...      
 }
 ```
 
@@ -462,7 +464,6 @@ vi /tmp/clusterpolicy.json
 oc apply -f /tmp/clusterpolicy.json
 ```
 
-
 8. To verify that the Operator deployment is successful, run:
 
 ```bash
@@ -470,6 +471,8 @@ oc get pods -n nvidia-gpu-operator
 ```
 
 ?> A successful deployment shows a Running status
+
+!> This procedure takes some minutes, keep calm !! 🙏🏻
 
 ```text
 NAME                            READY   STATUS    RESTARTS   AGE
