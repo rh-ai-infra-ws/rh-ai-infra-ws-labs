@@ -2,11 +2,22 @@
 
 * 🏎️ Module 2 [Accelerators Integration](2-accelerators-integration/README.md) 
   * [2.1. Enabling Accelerators](2-accelerators-integration/1-enabling-accelerators.md)
+    * [2.1.1 Node Feature Discovery](2-accelerators-integration/1-enabling-accelerators.md#node-feature-discovery)
+    * [2.1.2 GPU Operator](2-accelerators-integration/1-enabling-accelerators.md#gpu-operator)
+    * [2.1.3 Monitoring GPUs](2-accelerators-integration/1-enabling-accelerators.md#monitoring-gpus)
   * [2.2. GPU-As-A-Service](2-accelerators-integration/2-gpu-as-a-service.md)
+    * [2.2.1 Intelligent GPU Orchestration](2-accelerators-integration/2-gpu-as-a-service.md#intelligent-gpu-orchestration)
+    * [2.2.2 Time Slicing (GPU sharing)](2-accelerators-integration/2-gpu-as-a-service.md#time-slicing-gpu-sharing)
+    * [2.2.3 Intelligent Scheduling](2-accelerators-integration/2-gpu-as-a-service.md#intelligent-scheduling)
 
 * 🎢 Module 3 [Distributed Inference](3-distributed-inference/README.md)
   * [3.1. Review Openshift AI Components](3-distributed-inference/1-review-ocp-ai.md)
-  <!-- * [3.2. Deploy Predictive and GenAI models](3-distributed-inference/2-deploy-pred-gen-models.md) -->
-  <!-- * [3.3. Playing with llm-d](3-distributed-inference/3-llmd.md) -->
+    * [3.1.1 Red Hat OpenShift AI — Operators and requirements](3-distributed-inference/1-review-ocp-ai.md#red-hat-openshift-ai--operators-and-requirements)
+    * [3.1.2 Red Hat OpenShift AI — DSP configuration](3-distributed-inference/1-review-ocp-ai.md#red-hat-openshift-ai--dsp-configuration)
+    * [3.1.3 Create a ServingRuntime and an InferenceService](3-distributed-inference/1-review-ocp-ai.md#create-a-servingruntime-and-an-inferenceservice)
+    * [3.1.4 Inference service components](3-distributed-inference/1-review-ocp-ai.md#inference-service-components)
   * [3.2. Playing with llm-d](3-distributed-inference/3-llmd.md)
+    * [3.2.1 Create the LLMInferenceService](3-distributed-inference/3-llmd.md#create-the-llminferenceservice)
   * [3.4. Benchmark in vLLM and llm-d](3-distributed-inference/4-benchmark.md)
+    * [3.4.1 Deploy `llama-vllm` model](3-distributed-inference/4-benchmark.md#deploy-llama-vllm-model)
+    * [3.4.2 Explore vLLM metrics endpoint](3-distributed-inference/4-benchmark.md#explore-vllm-metrics-endpoint)
