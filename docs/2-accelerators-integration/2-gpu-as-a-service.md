@@ -484,7 +484,7 @@ EOF
 Verify the inference service was properly created:
 
 ```bash
-oc get InferenceService -n <USER_NAME>
+oc get InferenceService -n team2-genai
 ```
 
 ?> A succesfull output should be displayed
