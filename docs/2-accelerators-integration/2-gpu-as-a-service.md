@@ -84,12 +84,14 @@ Now, the cluster is ready for reserving the GPUs resources only for AI workloads
 
 The following "use case" will be our reference for implementing a control policy:
 
-- Team 1 - PredictiveAI Project is Allowed to use only 1 GPU.
-- Team 2 - GenAI Project is Allowed to use 3 GPUs.
+- **Team 1** - PredictiveAI Project is Allowed to use only 1 GPU.
+- **Team 2** - GenAI Project is Allowed to use 3 GPUs.
 
 For implementing this control policy, it is time to follow the next procedure:
 
 1. Create the Data Science Projects
+
+**team1-predictiveai**
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -102,6 +104,8 @@ metadata:
     opendatahub.io/dashboard: 'true'
 EOF
 ```
+
+**team2-genai**
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -117,19 +121,22 @@ EOF
 
 2. Create the respective hardware profiles
 
+**team1-predictiveai**
+
 ```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: infrastructure.opendatahub.io/v1
 kind: HardwareProfile
 metadata:
   annotations:
-    opendatahub.io/dashboard-feature-visibility: '[]'
+    opendatahub.io/dashboard-feature-visibility: '["workbench","model-serving"]'
+    opendatahub.io/hardware-profile-namespace: 'team1-predictiveai'
     opendatahub.io/description: This profile offers 1GPUs, 2 CPUs and 4 GiB of memory.
     opendatahub.io/disabled: 'false'
     opendatahub.io/display-name: team1-predictiveai-profile
     opendatahub.io/managed: 'false'
   name: team1-predictiveai-profile
-  namespace: redhat-ods-applications
+  namespace: team1-predictiveai
   labels:
     app.kubernetes.io/part-of: hardwareprofile
     app.opendatahub.io/hardwareprofile: 'true'
@@ -164,19 +171,22 @@ spec:
 EOF
 ```
 
+**team2-genai**
+
 ```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: infrastructure.opendatahub.io/v1
 kind: HardwareProfile
 metadata:
   annotations:
-    opendatahub.io/dashboard-feature-visibility: '[]'
+    opendatahub.io/dashboard-feature-visibility: '["workbench","model-serving"]'
+    opendatahub.io/hardware-profile-namespace: "team2-genai"
     opendatahub.io/description: This profile offers 1GPUs, 2 CPUs and 4 GiB of memory.
     opendatahub.io/disabled: 'false'
     opendatahub.io/display-name: team2-genai-profile
     opendatahub.io/managed: 'false'
   name: team2-genai-profile
-  namespace: redhat-ods-applications
+  namespace: team2-genai
   labels:
     app.kubernetes.io/part-of: hardwareprofile
     app.opendatahub.io/hardwareprofile: 'true'
@@ -210,6 +220,123 @@ spec:
     type: Node
 EOF
 ```
+
+3. Finally, it is interesting to disable the default hardware profile in order to have full control of resources that can be used by every namespace and resource.
+
+```bash
+oc annotate hardwareprofile default-profile -n redhat-ods-applications opendatahub.io/disabled=true --overwrite
+```
+
+Now, any new workbench or inference server should use their respective hardware profile based on the namespace that they will be deployed. For example, the following picture shown the hardware profile available for a new workbench in the namespace **team1-predictiveai**.
+
+![workbench-hardware-profile.png](images/workbench-hardware-profile.png)
+
+Finally, it is possible to define quotas in the namespace for different objects. For example, we can limit the number of workbenches, inference service or LLM services that can be deployed in any namespace. In order to implement these quotas, it is required to complete the following procedure:
+
+1. Create the ResourceQuota in the respective namespace
+
+**team1-predictiveai**
+
+```bash
+oc apply -f - <<EOF
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team1-predictiveai-quota
+  namespace: team1-predictiveai
+spec:
+  hard:
+    count/inferenceservices.serving.kserve.io: "1"
+    count/llminferenceservices.serving.kserve.io: "0"
+    count/notebooks.kubeflow.org: "1"
+EOF
+```
+
+**team2-genai**
+
+```bash
+oc apply -f - <<EOF
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team2-genai-quota
+  namespace: team2-genai
+spec:
+  hard:
+    count/inferenceservices.serving.kserve.io: "1"
+    count/llminferenceservices.serving.kserve.io: "1"
+    count/notebooks.kubeflow.org: "1"
+EOF
+```
+
+2. Test if quotas are correctly defined based on the objects that are have already created in the different namespaces
+
+**team1-predictiveai**
+
+```bash
+oc describe resourcequota -n team1-predictiveai
+```
+
+?> A similar output should be displayed
+
+```text
+Name:                                         team1-predictiveai-quota
+Namespace:                                    team1-predictiveai
+Resource                                      Used  Hard
+--------                                      ----  ----
+count/inferenceservices.serving.kserve.io     0     1
+count/llminferenceservices.serving.kserve.io  0     0
+count/notebooks.kubeflow.org                  1     1
+```
+
+**team2-genai**
+
+```bash
+oc describe resourcequota -n team2-genai
+```
+
+?> A similar output should be displayed
+
+```text
+Name:                                         team2-genai-quota
+Namespace:                                    team2-genai
+Resource                                      Used  Hard
+--------                                      ----  ----
+count/inferenceservices.serving.kserve.io     1     1
+count/llminferenceservices.serving.kserve.io  0     1
+count/notebooks.kubeflow.org                  0     1
+```
+
+?> The Red Hat OpenShift AI dashboard displays the following message once a quota has been reached:
+
+![error-quotas.png](images/error-quotas.png)
+
+### Quota for DRA resource claims (ROADMAP)
+
+DRA (Dynamic Resource Allocation) resource claims can request DRA resources by device class. For an example device class named examplegpu, you want to limit the total number of GPUs requested in a namespace to 4, you can define a quota as follows:
+
+```text
+examplegpu.deviceclass.resource.k8s.io/devices: 4
+```
+
+When [Extended Resource allocation by DRA](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/#extended-resource) is enabled, the same device class named examplegpu can be requested via extended resource either explicitly when the device class's ExtendedResourceName field is given, say, example.com/gpu, then you can define a quota as follows:
+
+```text
+requests.example.com/gpu: 4
+```
+
+or implicitly using the derived extended resource name from device class name examplegpu, you can define a quota as follows:
+
+```text
+requests.deviceclass.resource.kubernetes.io/examplegpu: 4
+```
+
+All devices requested from resource claims or extended resources are counted towards all three quotas listed above. The extended resource quota e.g. requests.example.com/gpu: 4, also counts the devices provided by device plugin.
+
+See [Viewing and Setting Quotas](https://kubernetes.io/docs/concepts/policy/resource-quotas/#viewing-and-setting-quotas) for more details.
+
+!> This feature is GA in Red Hat Openshift 4.21+ and Red Hat Openshift AI team is working in implementing these changes in the product in the following versions
+
 
 ## Time Slicing (GPU sharing) 
 
@@ -572,4 +699,20 @@ Example output:
 
 ### Kueue
 
-WIP
+?> This section tries to provide readers some knowledge about GPUaaS strategy with Kueue
+
+Kueue is a kubernetes-native system that manages quotas and how jobs consume them. Kueue decides when a job should wait, when a job should be admitted to start (as in pods can be created) and when a job should be preempted (as in active pods should be deleted).
+
+In Red Hat OpenShift AI (RHOAI), **Kueue** acts as the intelligent workload scheduler and quota management system, specifically designed to handle the complexities of distributed AI and machine learning workloads. 
+
+Rather than simply failing jobs when hardware like GPUs runs out, the Red Hat build of Kueue Operator interacts with the Kubernetes scheduler and cluster-autoscaler to manage a full batch and training system. 
+
+Here are the key capabilities and functions of Kueue in RHOAI:
+
+*   **Intelligent Queueing and Quota Management:** Kueue determines whether a workload should run immediately or wait in a queue based on available resources. It enforces fair resource allocation across different teams and namespaces using per-tenant quotas, borrowing and lending limits, and fair sharing strategies.
+*   **Job Prioritization and Preemption:** To maximize efficiency and ensure critical tasks are completed, Kueue can prioritize certain workloads. If resources are exhausted, it can preempt (pause) lower-priority jobs to free up GPUs for high-priority jobs, seamlessly resuming the paused jobs when resources become available again.
+*   **Optimized Resource Usage:** By effectively managing how distributed workloads consume quotas, Kueue prevents scheduling bottlenecks and maximizes the utilization of expensive hardware like GPUs, achieving true shared cluster economics.
+*   **Deep Integration with AI Frameworks:** Kueue integrates seamlessly with underlying Kubernetes objects (Pods, Jobs, JobSets) as well as the frameworks used in RHOAI for distributed workloads, such as KubeRay (for Ray clusters) and the Kubeflow Training Operator (for PyTorch workloads). 
+
+Administrators can link RHOAI **Hardware Profiles** directly to a Kueue *LocalQueue* to automatically assign these resource governance rules to specific hardware configurations requested by users. Furthermore, administrators can monitor Kueue's behavior through specific alerts, such as when workloads are pending for too long or when resource reservations excessively exceed the quota.
+
