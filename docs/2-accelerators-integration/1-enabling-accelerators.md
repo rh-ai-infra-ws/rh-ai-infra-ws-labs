@@ -65,14 +65,14 @@ EOF
 oc get pods -n openshift-nfd
 ```
 
-?> A successful deployment shows a Running status
+?> ✅ You should see pods in **Running** state.
 
 ```text
 NAME                                      READY   STATUS    RESTARTS   AGE
 nfd-controller-manager-7c64df65f4-5mmm6   1/1     Running   0          85s
 ```
 
-5. Create a NodeFeatureDiscovery CR:
+5. Create a `NodeFeatureDiscovery` custom resource:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -211,7 +211,7 @@ EOF
 oc get pods -n openshift-nfd
 ```
 
-?> A successful deployment shows a Running status
+?> ✅ Again, expect **Running** pods once the CR is reconciled.
 
 ```text
 NAME                                      READY   STATUS    RESTARTS   AGE
@@ -221,15 +221,15 @@ nfd-master-b697bbdb8-pcgfl                1/1     Running   0          2m
 nfd-worker-csmds                          1/1     Running   0          2m
 ```
 
-?> nfd-worker-csmds is created for each worker node 
+?> 🖥️ You get one **nfd-worker** pod per worker node (your pod name suffix will differ).
 
-7. Review the controller-manager pod logs:
+7. Peek at the controller-manager logs:
 
 ```bash
 oc logs -n openshift-nfd -l control-plane=controller-manager --tail=1000
 ```
 
-?> A successful deployment shows similar logs like that
+?> 📜 Log lines will differ slightly by version, but you should see the manager, metrics server, and controllers starting cleanly.
 
 ```text
 I0504 13:53:12.044142       1 main.go:187] "starting manager" logger="nfd.setup"
@@ -257,7 +257,7 @@ I0504 13:53:28.572129       1 controller.go:220] "Starting workers" logger="nfd"
 oc logs -n openshift-nfd -l app=nfd-worker --tail=1000
 ```
 
-?> A successful deployment shows a similar output
+?> 📜 Look for **feature discovery completed** (and expect a benign swap-detection warning on some hosts).
 
 ```text
 I0504 14:06:53.235666       1 main.go:59] "version not set! Set -ldflags \"-X github.com/openshift/node-feature-discovery/pkg/version.version=`git describe --tags --dirty --always --match 'v*'`\" during build or run."
@@ -269,14 +269,14 @@ I0504 14:06:53.274199       1 nfd-worker.go:538] "starting feature discovery..."
 I0504 14:06:53.274435       1 nfd-worker.go:551] "feature discovery completed"
 ```
 
-9. Finally, review the different labels in the node:
+9. Finally, inspect the labels on your GPU worker node:
 
 ```bash
 oc get nodes
 oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
 ```
 
-?> A successful deployment shows a similar output
+?> 🏷️ You should see hardware-oriented labels (CPU features, PCI presence, instance type, topology, and more).
 
 ```json
 {
@@ -364,11 +364,11 @@ oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
 
 ## GPU Operator
 
-Before you can use NVIDIA GPUs in OpenShift AI, you must install the NVIDIA GPU Operator. Additionally, meeting the following prerequisites is essential:
+To use NVIDIA GPUs with OpenShift AI, install the **NVIDIA GPU Operator** on the cluster. Prerequisites:
 
-- You have logged in to your OpenShift cluster.
-- You have the cluster-admin role in your OpenShift cluster.
-- You have installed an NVIDIA GPU and confirmed that it is detected in your environment.
+- You are logged in with `oc`.
+- You hold the **cluster-admin** role.
+- At least one node has a supported NVIDIA GPU (visible to the OS / hypervisor).
 
 As a cluster administrator, you can install the NVIDIA GPU Operator using the OpenShift CLI (oc).
 
@@ -428,14 +428,14 @@ EOF
 oc get pods -n nvidia-gpu-operator
 ```
 
-?> A successful deployment shows a Running status
+?> ✅ The **gpu-operator** controller pod should be **Running**.
 
 ```text
 NAME                            READY   STATUS    RESTARTS   AGE
 gpu-operator-5b47d6cd6b-lqcrh   1/1     Running   0          8m25s
 ```
 
-5. Create a clusterpolicy.json file using the default config:
+5. Create a `clusterpolicy.json` file from the CSV’s default example:
 
 ```bash
 CHANNEL=$(oc get packagemanifest gpu-operator-certified -n openshift-marketplace -o jsonpath='{.status.defaultChannel}')
@@ -443,9 +443,9 @@ STARTING_CSV=$(oc get packagemanifests/gpu-operator-certified -n openshift-marke
 oc get csv -n nvidia-gpu-operator $STARTING_CSV -o jsonpath='{.metadata.annotations.alm-examples}' | jq '.[0]' > /tmp/clusterpolicy.json
 ```
 
-?> You can see an example in the following [link](2-accelerators-integration/_clusterpolicy-example.md)
+?> 📎 A trimmed reference lives in [_clusterpolicy-example.md](2-accelerators-integration/_clusterpolicy-example.md).
 
-6. Modify the clusterpolicy.json file to specify the following configuration aspects:
+6. Edit `/tmp/clusterpolicy.json` and set the driver image details under `spec.driver` (repository, image name, and version), for example:
 
 ```bash
 vi /tmp/clusterpolicy.json
@@ -470,9 +470,9 @@ oc apply -f /tmp/clusterpolicy.json
 oc get pods -n nvidia-gpu-operator
 ```
 
-?> A successful deployment shows a Running status
+?> ✅ When the stack is healthy, every pod below should settle into **Running** (validators may show **Completed**).
 
-!> This procedure takes some minutes, keep calm !! 🙏🏻
+!> ⏳ Grab coffee—driver and daemonset rollouts can take several minutes. 🙏
 
 ```text
 NAME                            READY   STATUS    RESTARTS   AGE
@@ -488,23 +488,23 @@ nvidia-node-status-exporter-7b7j6              1/1     Running     0            
 nvidia-operator-validator-rkc7f                1/1     Running     0               8m15s
 ```
 
-?>gpu-feature-discovery, nvidia-device-plugin-daemonset, nvidia-node-status-exporter, nvidia-dcgm, nvidia-dcgm-exporter and nvidia-operator-validator are created for each worker node 
+?> 🖥️ On each GPU worker you should see **gpu-feature-discovery**, **nvidia-device-plugin-daemonset**, **nvidia-node-status-exporter**, **nvidia-dcgm**, **nvidia-dcgm-exporter**, and **nvidia-operator-validator** (names will vary).
 
-9. Review the nfd-worker pod logs:
+9. Check **nfd-worker** logs again after the GPU stack comes up:
 
 ```bash
 oc logs -n openshift-nfd -l app=nfd-worker --tail=1000
 ```
 
-?> A successful deployment shows a similar output
+?> 📜 You should see lines like **updating NodeFeature object** as labels are reconciled.
 
 ```text
 I0505 13:11:07.447011       1 nfd-worker.go:667] "updating NodeFeature object" nodefeature="openshift-nfd/ip-10-0-15-11.us-east-2.compute.internal"
 ```
 
-10. Review the nvidia components pods logs:
+10. Optional deep dive: tail logs from the NVIDIA daemons
 
-**gpu-feature-discovery**: Interacting directly with the NVIDIA software components to identify and expose the highly specific characteristics of the GPUs via labels
+**gpu-feature-discovery** 🔍 — Talks to NVIDIA libraries to discover GPUs and publish GFD labels.
 
 ```bash
 oc logs -n nvidia-gpu-operator -l app=gpu-feature-discovery --tail=1000
@@ -523,7 +523,7 @@ I0505 13:15:32.904223       1 output.go:91] Writing labels to output file /etc/k
 ...
 ```
 
-**nvidia-device-plugin-daemonset**: Exposing the physical GPU hardware to the cluster
+**nvidia-device-plugin-daemonset** 🔌 — Registers `nvidia.com/gpu` with the kubelet so pods can request GPUs.
 
 ```bash
 oc logs -n nvidia-gpu-operator -l app=nvidia-device-plugin-daemonset --tail=1000
@@ -539,7 +539,7 @@ I0505 13:15:33.896883       1 server.go:149] Registered device plugin for 'nvidi
 ...
 ```
 
-**nvidia-node-status-exporter**: Exporting status information about the NVIDIA GPUs on the host node
+**nvidia-node-status-exporter** 📡 — Reports driver / CUDA readiness and validation status from the node.
 
 ```bash
 oc logs -n nvidia-gpu-operator -l app=nvidia-node-status-exporter --tail=1000
@@ -558,14 +558,14 @@ time="2026-05-05T13:15:55Z" level=info msg="metrics: DevicePlugin validation: fo
 ...
 ```
 
-11. Finally, review again the lables defined for the node with all the GPU configuration included:
+11. Finally, inspect node labels again—you should now see `nvidia.com/*` keys alongside NFD’s `feature.node.kubernetes.io/*` labels:
 
 ```bash
 oc get nodes
 oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
 ```
 
-?> A successful deployment shows a similar output
+?> 🎮 Look for **nvidia.com/gpu.*** (count, product, memory, driver versions) and confirm they match your hardware.
 
 
 ```json
@@ -689,33 +689,33 @@ oc get node <NODE_NAME>  -o jsonpath='{.metadata.labels}' | jq '.'
 }
 ```
 
-The cluster is now fully configured and optimized with the necessary NVIDIA drivers, resource management tools, and runtime support to effectively utilize NVIDIA GPUs. This comprehensive readiness ensures a robust platform capable of deploying and scaling a wide range of GPU-accelerated workloads, including Deep Learning, HPC, and data analytics.
+The cluster is now fully configured and optimized with the necessary NVIDIA drivers, resource management tools, and runtime support to effectively utilize NVIDIA GPUs. This comprehensive readiness ensures a robust platform capable of deploying and scaling a wide range of GPU-accelerated workloads, including Deep Learning, HPC, and data analytics. 🎉🎉
 
 ## Monitoring GPUs
 
-The GPU Operator exposes GPU telemetry for Prometheus by using the NVIDIA DCGM Exporter. These metrics can be visualized using a monitoring dashboard based on Grafana.
+The GPU Operator ships **DCGM Exporter** metrics into Prometheus. Wire them into a Grafana-style dashboard in the console so you can watch utilization, temperature, and power at a glance. 📈
 
-1. Download the latest NVIDIA DCGM Exporter Dashboard from the DCGM Exporter repository on GitHub:
+1. Download the upstream **NVIDIA DCGM Exporter** dashboard JSON from GitHub:
 
 ```bash
 curl -LfO https://github.com/NVIDIA/dcgm-exporter/raw/main/grafana/dcgm-exporter-dashboard.json
 ```
 
-?> You can see an example in the following [link](2-accelerators-integration/_dcgm-exporter-dashboard.md)
+?> 📎 A large sample JSON is captured in [_dcgm-exporter-dashboard.md](2-accelerators-integration/_dcgm-exporter-dashboard.md) for offline browsing.
 
-2. Create a config map from the downloaded file in the openshift-config-managed namespace:
+2. Create a `ConfigMap` from the downloaded file in the `openshift-config-managed` namespace:
 
 ```bash
 oc create configmap nvidia-dcgm-exporter-dashboard -n openshift-config-managed --from-file=dcgm-exporter-dashboard.json
 ```
 
-3. Label the config map to expose the dashboard in the Administrator perspective of the web console:
+3. Label the `ConfigMap` so the **Administrator** console picks it up as a dashboard:
 
 ```bash
 oc label configmap nvidia-dcgm-exporter-dashboard -n openshift-config-managed "console.openshift.io/dashboard=true"
 ```
 
-4. Verify the new dashboard in the OpenShift Container Platform web console navigating to **Observe -> Dashboards** and select NVIDIA DCGM Exporter Dashboard from the Dashboard list.
+4. In the OpenShift web console, go to **Observe → Dashboards** and open **NVIDIA DCGM Exporter Dashboard** from the list. 🖥️
 
 ![nvidia-gpu-dashboards.png](images/nvidia-gpu-dashboards.png)
 

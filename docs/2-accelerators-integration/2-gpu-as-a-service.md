@@ -1,4 +1,4 @@
-# 👨🏼‍💻 GPU As A Service
+# 👨🏼‍💻 GPU as a Service
 
 GPU-as-a-Service is a fundamental approach for maximizing the efficiency and security of specialized AI hardware. It facilitates secure and effective multi-tenancy by centralizing resources and utilizing advanced scheduling mechanisms.
 
@@ -12,18 +12,18 @@ GPU-as-a-Service is a fundamental approach for maximizing the efficiency and sec
 
 A key strategy is needed to prevent non-AI workloads from inadvertently using GPU nodes, while also allowing users to select specific hardware profiles (such as an NVIDIA L4 or A100) to match their model's computational demands. Red Hat OpenShift, together with Red Hat OpenShift AI, provides the necessary mechanisms—including node taints, tolerations, custom labels and hardware profiles to define and enforce a solution for this challenge.
 
-The following procedure implement this strategy creating the required resources in the Openshift cluster:
+The steps below build that pattern on your cluster.
 
-1. First of all, it is required to reserve the worker nodes with GPUs for only AI workloads. For this goal, it is required to create the following taints:
+1. **Taint GPU workers** so only workloads that *opt in* (tolerations) can land there—typically your AI namespaces and the NVIDIA stack itself.
 
 ```bash
 oc get nodes
 oc adm taint node <NODE_NAME> ai/workloads=Exists:NoSchedule --overwrite 
 ```
 
-!> If any pod related to the NVIDIA operator is restarted, then it couldn't start again because of this tains. It is possible to try...😋
- 
-2. Modify the NVIDIA ClusterPolicy to include the respective tolerations in the pods deployed by the operator:
+!> ⚠️ **Heads-up:** if NVIDIA operator pods restart *before* they have this toleration, they may stay **Pending** on a tainted node—always patch **ClusterPolicy** right after tainting (or taint only after the stack is up). Peek at scheduling events if you are curious. 👀
+
+2. Patch **ClusterPolicy** so every NVIDIA daemonset gets a matching toleration for `ai/workloads`:
 
 ```bash
 oc patch clusterpolicy gpu-cluster-policy -n nvidia-gpu-operator --type=merge -p '
@@ -43,13 +43,13 @@ oc patch clusterpolicy gpu-cluster-policy -n nvidia-gpu-operator --type=merge -p
 '
 ```
 
-Verify that the daemonsets are now running on the tainted node:
+Watch pods until they reconcile on the tainted node:
 
 ```bash
 oc get pods -n nvidia-gpu-operator -o wide -w
 ```
 
-!> All pods should be restarted to change tolerations in their definition
+!> 🔄 Expect a rolling restart while the new tolerations roll out.
 
 ```text
 NAME                                           READY   STATUS      RESTARTS   AGE   IP            NODE                                        NOMINATED NODE   READINESS GATES
@@ -65,7 +65,7 @@ nvidia-node-status-exporter-cffd5              1/1     Running     0          90
 nvidia-operator-validator-kb9dm                0/1     Init:0/4    0          42s   10.129.0.38   ip-10-0-15-196.us-east-2.compute.internal   <none>           <none>
 ```
 
-?> A successful deployment shows a Running status after some minutes
+?> ✅ After a few minutes, every pod should reach **Running** (validators may finish as **Completed**).
 
 ```text
 gpu-feature-discovery-gp8bp                    1/1     Running     0               4m34s   10.129.0.33   ip-10-0-15-196.us-east-2.compute.internal   <none>           <none>
@@ -80,12 +80,10 @@ nvidia-node-status-exporter-cffd5              1/1     Running     0            
 nvidia-operator-validator-kb9dm                1/1     Running     0               4m34s   10.129.0.38   ip-10-0-15-196.us-east-2.compute.internal   <none>           <none>
 ```
 
-Now, the cluster is ready for reserving the GPUs resources only for AI workloads. Then, it is time for sharing the NVIDIA GPUs for multiple customers defining an orchestration limiting strategy in the different Data Science projects.
+GPU nodes are now “AI-only” by default. Next, **carve capacity per team** with namespaces, hardware profiles, and quotas—our running example:
 
-The following "use case" will be our reference for implementing a control policy:
-
-- **Team 1** - PredictiveAI Project is Allowed to use only 1 GPU.
-- **Team 2** - GenAI Project is Allowed to use 3 GPUs.
+- **Team 1 — `team1-predictiveai`:** up to **1** GPU.
+- **Team 2 — `team2-genai`:** up to **3** GPUs.
 
 For implementing this control policy, it is time to follow the next procedure:
 
@@ -221,19 +219,21 @@ spec:
 EOF
 ```
 
-3. Finally, it is interesting to disable the default hardware profile in order to have full control of resources that can be used by every namespace and resource.
+3. Disable the **default** hardware profile so teams rely on the profiles you just defined (full control per namespace). 🎛️
 
 ```bash
 oc annotate hardwareprofile default-profile -n redhat-ods-applications opendatahub.io/disabled=true --overwrite
 ```
 
-Now, any new workbench or inference server should use their respective hardware profile based on the namespace that they will be deployed. For example, the following picture shown the hardware profile available for a new workbench in the namespace **team1-predictiveai**.
+New workbenches and model servers should pick up the profile that matches their project—for example, **team1-predictiveai** shows the capped profile in the UI:
 
 ![workbench-hardware-profile.png](images/workbench-hardware-profile.png)
 
-Finally, it is possible to define quotas in the namespace for different objects. For example, we can limit the number of workbenches, inference service or LLM services that can be deployed in any namespace. In order to implement these quotas, it is required to complete the following procedure:
+### Resource quotas (object counts)
 
-1. Create the ResourceQuota in the respective namespace
+You can also cap **how many** notebooks, InferenceServices, or LLMInferenceServices exist per namespace. Example below.
+
+1. Apply a `ResourceQuota` in each namespace
 
 **team1-predictiveai**
 
@@ -269,7 +269,7 @@ spec:
 EOF
 ```
 
-2. Test if quotas are correctly defined based on the objects that are have already created in the different namespaces
+2. Describe quotas to confirm **Used** vs. **Hard** lines up with what you deployed
 
 **team1-predictiveai**
 
@@ -277,7 +277,7 @@ EOF
 oc describe resourcequota -n team1-predictiveai
 ```
 
-?> A similar output should be displayed
+?> ✅ Numbers will differ, but **Used** should never exceed **Hard**.
 
 ```text
 Name:                                         team1-predictiveai-quota
@@ -295,7 +295,7 @@ count/notebooks.kubeflow.org                  1     1
 oc describe resourcequota -n team2-genai
 ```
 
-?> A similar output should be displayed
+?> ✅ Numbers will differ, but **Used** should never exceed **Hard**.
 
 ```text
 Name:                                         team2-genai-quota
@@ -307,11 +307,11 @@ count/llminferenceservices.serving.kserve.io  0     1
 count/notebooks.kubeflow.org                  0     1
 ```
 
-?> The Red Hat OpenShift AI dashboard displays the following message once a quota has been reached:
+?> 🚫 When a quota blocks a create, the dashboard surfaces a clear error—handy for demos and support tickets:
 
 ![error-quotas.png](images/error-quotas.png)
 
-### Quota for DRA resource claims (ROADMAP)
+### Quota for DRA resource claims (roadmap) 🗺️
 
 DRA (Dynamic Resource Allocation) resource claims can request DRA resources by device class. For an example device class named examplegpu, you want to limit the total number of GPUs requested in a namespace to 4, you can define a quota as follows:
 
@@ -337,37 +337,35 @@ See [Viewing and Setting Quotas](https://kubernetes.io/docs/concepts/policy/reso
 
 !> This feature is GA in Red Hat Openshift 4.21+ and Red Hat Openshift AI team is working in implementing these changes in the product in the following versions
 
+## Time-slicing (GPU sharing) ⏱️
 
-## Time Slicing (GPU sharing) 
+**Time-slicing** is a software trick: one physical GPU serves many pods by giving each a tiny slice of execution time in round-robin fashion—great for demos and bursty dev/test, less ideal for latency-sensitive production.
 
-Time-slicing is a software-based technique that allows a single GPU to be shared by multiple processes or containers by dividing its processing time into small intervals. Each process gets a turn to use the GPU in a round-robin fashion.
+**How it works:** the device plugin advertises more `nvidia.com/gpu` “slots” than silicon chips; the low-level scheduler multiplexes contexts so workloads *appear* concurrent.
 
-How it works: The GPU scheduler allocates time slices to each process. At the end of a time slice, the scheduler preempts the current execution, saves its context, and switches to the next process. This allows multiple workloads to appear to run concurrently on the same physical GPU.
+- **Cost efficiency** 💰 — Sweats assets when no single job needs a whole card.
+- **Concurrency** 🤝 — Many small jobs can share one GPU.
+- **Broad compatibility** 🧰 — Works across most NVIDIA datacenter GPUs.
+- **Kubernetes-friendly** ☸️ — Configured through the NVIDIA GPU Operator + device plugin.
 
-- **Cost Efficiency**: Maximizes the utilization of expensive GPUs, particularly for small-to-medium-sized workloads that don’t fully utilize a GPU.
-- **Concurrency**: Enables multiple applications or users to access the GPU simultaneously.
-- **Broad Compatibility**: Works with almost all NVIDIA GPU architectures.
-- **Flexibility**: Can accommodate a variety of workloads.
-- **Simple to Implement (in Kubernetes)**: Can be configured using the NVIDIA GPU operator and device plugin.
+!> 🛑 **Not recommended for strict production SLOs**—noisy neighbors and preemption jitter are real.
 
-!> This technology is not recommended for production environments
+Try it on your lab cluster:
 
-Following the next procedure allows you to work with GPUs:
-
-1. Identify the GPU installed product on the node and 
+1. Confirm the **GPU product** label on your worker (adjust the grep if you use a different SKU):
 
 ```bash
 oc get nodes
 oc get node <NODE_NAME> -o jsonpath='{.metadata.labels}' | jq '.' | grep product
 ```
 
-?> It should display a similar output
+?> 🔎 Expect a line similar to:
 
 ```text
  "nvidia.com/gpu.product": "NVIDIA-L4",
 ```
 
-2. Create a YAML file to define how you want to slice your GPUs indicating your model version.
+2. Create a `ConfigMap` that defines **replicas per physical GPU** for your product string (here, `NVIDIA-L4` with 16 logical GPUs each):
 
 ```bash
 cat <<EOF | oc apply -f -
@@ -387,7 +385,7 @@ data:
 EOF
 ```
 
-3. Configure the NVIDIA operator defined a specific name for the Device Plugin that will be referenced in future steps:
+3. Point **ClusterPolicy** at that `ConfigMap` (and keep GFD enabled so labels stay accurate):
 
 ```bash
 oc patch clusterpolicy gpu-cluster-policy -n nvidia-gpu-operator \
@@ -398,7 +396,7 @@ oc patch clusterpolicy gpu-cluster-policy \
   -p '{"spec": {"devicePlugin": {"config": {"name": "device-plugin-config"}}}}'
 ```
 
-4. Label the node with this specific product name:
+4. Label nodes whose **unsliced** product matches your config key (here `NVIDIA-L4`):
 
 ```bash
 oc label --overwrite node \
@@ -406,15 +404,15 @@ oc label --overwrite node \
     nvidia.com/device-plugin.config=NVIDIA-L4
 ```
 
-?> The selector value nvidia.com/gpu.product=NVIDIA-L4 must match the GPU product name as labeled by the GPU Operator’s Node Feature Discovery (NFD) component.
+?> 🎯 The selector **must** match the `nvidia.com/gpu.product` value your GPU Operator / GFD published (case-sensitive).
 
-5. Verify Time Slicing was enabled successfully
+5. Verify time-slicing took effect
 
 ```bash
 oc get node --selector=nvidia.com/gpu.product=NVIDIA-L4-SHARED -o json | jq '.items[0].status.capacity'
 ```
 
-?> A successful deployment shows a similar output
+?> 📈 Capacity should show more `nvidia.com/gpu` than physical cards (here: **16 replicas × 4 GPUs = 64**).
 
 ```json
 {
@@ -428,7 +426,7 @@ oc get node --selector=nvidia.com/gpu.product=NVIDIA-L4-SHARED -o json | jq '.it
 }
 ```
 
-?> Note that a -SHARED suffix has been added to the nvidia.com/gpu.product label to reflect that time slicing is enabled
+?> 🏷️ The node label `nvidia.com/gpu.product` picks up a **`-SHARED`** suffix so you can tell slicing is on.
 
 **Multi-Instance GPU (MIG)**
 
@@ -444,15 +442,16 @@ How it works: The physical GPU is divided into independent "MIG slices" at the h
 
 !> Only supported on NVIDIA Ampere architecture and newer (A100, H100, etc.).
 
-?> Combining MIG and Time-Slicing: You can configure the NVIDIA GPU Operator to enable time-slicing within a MIG instance. This means that after you’ve created a MIG instance (which provides hardware isolation from other MIG instances), you can then allow multiple pods to time-slice that specific MIG instance.
+?> 🧪 **Advanced combo:** you can enable time-slicing *inside* an individual MIG slice after you carve the GPU—hardware isolation between slices, software sharing *within* a slice.
 
 ## Intelligent Scheduling
 
+Put the pieces together: **hardware profiles** keep inference honest, while **Kueue** (below) is the big hammer for batch and distributed training queues.
 Now, it is time to use all the components already created in this lab, limiting quotas for inference servers via hardware profiles and advanced quotas for training with kueue.
 
 ### Inference Service
 
-1. Create a `ServingRuntime` to expose a new runtime for model deployment in the *team2-genai* namespace:
+1. Create a `ServingRuntime` for allowing **team2-genai** to serve vLLM-backed models from the dashboard:
 
 ```bash
 cat << 'EOF' | oc apply -n team2-genai -f-
@@ -504,7 +503,7 @@ spec:
 EOF
 ```
 
-2. It is time to create the inference service that links a specific model with a runtime, defining the main configuration for the service in the *team2-genai* namespace. Please create the following example and verify the configuration:
+2. Deploy an `InferenceService` that **on purpose** asks for more GPUs than `team2-genai-profile` allows—watch the admission / scheduling story unfold:
 
 ```bash
 cat << 'EOF' | oc apply -n team2-genai -f -
@@ -549,27 +548,27 @@ EOF
 oc get InferenceService -n team2-genai
 ```
 
-?> An unsuccessful deployment shows a similar output
+?> ⚠️ `READY=False` is expected—your policy caps GPUs below what the manifest requests.
 
 ```text
 NAME                URL                                                                READY   PREV   LATEST   PREVROLLEDOUTREVISION   LATESTREADYREVISION   AGE
 llama-vllm-single   http://llama-vllm-single-predictor.team2-genai.svc.cluster.local   False                                                                 19m
 ```
 
-4. Verify why the inference service is not working properly: 
+4. Inspect events to see **why** scheduling failed (quota vs. taint vs. capacity):
 
 ```bash
 oc get events -n team2-genai
 ```
 
-?> A similar output should be displayed
+?> 🔍 Look for **FailedScheduling** messages that mention insufficient `nvidia.com/gpu`.
 
 ```text
 38s         Warning   FailedScheduling               pod/llama-vllm-single-predictor-657cb6bf7-rlfwd       0/2 nodes are available: 1 Insufficient nvidia.com/gpu, 1 node(s) had untolerated taint(s). no new claims to deallocate, preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling.
 6m3s        Normal    SuccessfulCreate               replicaset/llama-vllm-single-predictor-657cb6bf7                                                                  18m
 ```
 
-5. Modify the number of replicas for the GPU:
+5. Patch the `InferenceService` so GPU requests fit inside **team2-genai-profile** (here: **2** GPUs):
 
 ```bash
 cat << 'EOF' | oc apply -n team2-genai -f -
@@ -614,14 +613,14 @@ Verify the inference service was properly created:
 oc get InferenceService -n team2-genai
 ```
 
-?> A succesfull output should be displayed
+?> ✅ `READY=True` means the predictor pod is ready to receive inference request.
 
 ```text
 NAME                URL                                                             READY   PREV   LATEST   PREVROLLEDOUTREVISION   LATESTREADYREVISION   AGE
 llama-vllm-single   http://llama-vllm-single-predictor.team2-genai.svc.cluster.local   True                                                                  18m
 ```
 
-?> It takes a few minutes for the model to load and the state to change to "Ready". Leave this running in your terminal and continue reading the concepts below. We’ll come back to test the deployment at the end of this module.
+?> ⏳ It takes a few minutes for the model to load and the state to change to "Ready". Leave this running in your terminal and continue reading the concepts below. We’ll come back to test the deployment at the end of this module.
 
 6. Finally, test the new inference service:
 
@@ -697,7 +696,7 @@ Example output:
 ...
 ```
 
-### Kueue
+### Kueue 🧮
 
 ?> This section tries to provide readers some knowledge about GPUaaS strategy with Kueue
 
@@ -709,10 +708,9 @@ Rather than simply failing jobs when hardware like GPUs runs out, the Red Hat bu
 
 Here are the key capabilities and functions of Kueue in RHOAI:
 
-*   **Intelligent Queueing and Quota Management:** Kueue determines whether a workload should run immediately or wait in a queue based on available resources. It enforces fair resource allocation across different teams and namespaces using per-tenant quotas, borrowing and lending limits, and fair sharing strategies.
-*   **Job Prioritization and Preemption:** To maximize efficiency and ensure critical tasks are completed, Kueue can prioritize certain workloads. If resources are exhausted, it can preempt (pause) lower-priority jobs to free up GPUs for high-priority jobs, seamlessly resuming the paused jobs when resources become available again.
-*   **Optimized Resource Usage:** By effectively managing how distributed workloads consume quotas, Kueue prevents scheduling bottlenecks and maximizes the utilization of expensive hardware like GPUs, achieving true shared cluster economics.
-*   **Deep Integration with AI Frameworks:** Kueue integrates seamlessly with underlying Kubernetes objects (Pods, Jobs, JobSets) as well as the frameworks used in RHOAI for distributed workloads, such as KubeRay (for Ray clusters) and the Kubeflow Training Operator (for PyTorch workloads). 
+*   **Intelligent Queueing and Quota Management** 📊 — Kueue determines whether a workload should run immediately or wait in a queue based on available resources. It enforces fair resource allocation across different teams and namespaces using per-tenant quotas, borrowing and lending limits, and fair sharing strategies.
+*   **Job Prioritization and Preemption** 🎚️ — To maximize efficiency and ensure critical tasks are completed, Kueue can prioritize certain workloads. If resources are exhausted, it can preempt (pause) lower-priority jobs to free up GPUs for high-priority jobs, seamlessly resuming the paused jobs when resources become available again.
+*   **Optimized Resource Usage** 💸 — By effectively managing how distributed workloads consume quotas, Kueue prevents scheduling bottlenecks and maximizes the utilization of expensive hardware like GPUs, achieving true shared cluster economics.
+*   **Deep Integration with AI Frameworks** 🔗 - Kueue integrates seamlessly with underlying Kubernetes objects (Pods, Jobs, JobSets) as well as the frameworks used in RHOAI for distributed workloads, such as KubeRay (for Ray clusters) and the Kubeflow Training Operator (for PyTorch workloads). 
 
 Administrators can link RHOAI **Hardware Profiles** directly to a Kueue *LocalQueue* to automatically assign these resource governance rules to specific hardware configurations requested by users. Furthermore, administrators can monitor Kueue's behavior through specific alerts, such as when workloads are pending for too long or when resource reservations excessively exceed the quota.
-

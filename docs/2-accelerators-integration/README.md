@@ -15,6 +15,5 @@ GPU-as-a-Service is a crucial paradigm for maximizing the efficiency and securit
 The core focus of this laboratory is to test distributed inference capabilities, which necessitates the deployment of the following required assets:
 
 * Red Hat Openshift 4.21
-
 > The required components are fully available within the "Red Hat OpenShift Container Platform Cluster (AWS)" catalog item on demo.redhat.com. Additionally, it is required to deploy an additional g6.12xlarge node. 
 > Finally, it is possible to find the content slides in the following [link](https://docs.google.com/presentation/d/11MfHXDDc_Psr1WX8S1DpppxNvNibpYE3QfrHnRXv-q0/edit?usp=sharing) 
