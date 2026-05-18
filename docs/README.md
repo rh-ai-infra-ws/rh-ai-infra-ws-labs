@@ -6,7 +6,7 @@ This workshop will provide a comprehensive review of the key aspects of OpenShif
 
 ##  🤖  Module 1 - [ Operator & Components](1-ocp-ai-operator-components/README.md)
 
-WIP
+The **Operator & Components with OpenShift AI** module serves as the foundational entry point for this workshop. IT details the complete deployment lifecycle—from the initial Operator subscription via the Operator Lifecycle Manager (OLM) to the precise configuration of DataScienceCluster (DSC) and DSCInitialization (DSCI) custom resources. Participants will learn how to architect the control plane, manage component states (Managed, Removed, or Unmanaged).
 
 ##  🏎️  Module 2 - [ Accelerators Integration](2-accelerators-integration/README.md)
 

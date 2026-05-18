@@ -1,5 +1,15 @@
 * 🤖 Module 1 [OpenShift AI Operator & Components](1-ocp-ai-operator-components/README.md)
-
+  * [1.1. OpenShift AI Installation](1-ocp-ai-operator-components/1-rhoai-installation.md)
+    * [1.1.1 Install the Red Hat OpenShift AI Operator](1-ocp-ai-operator-components/1-rhoai-installation.md#install-the-red-hat-openshift-ai-operator)
+    * [1.1.2 Verify the Environment Initialization (DSCInitialization)](1-ocp-ai-operator-components/1-rhoai-installation.md#verify-the-environment-initialization-dscinitialization)
+    * [1.1.3 Foundational Component Deployment (DataScienceCluster)](1-ocp-ai-operator-components/1-rhoai-installation.md#foundational-component-deployment-datasciencecluster)
+    * [1.1.4 Verification](1-ocp-ai-operator-components/1-rhoai-installation.md#verification)
+  * [1.2. Component Configuration](1-ocp-ai-operator-components/2-component-configuration.md)
+    * [1.2.1 Navigating the DataScienceCluster (DSC)](1-ocp-ai-operator-components/2-component-configuration.md#navigating-the-datasciencecluster-dsc)
+    * [1.2.2 Activating the Model Registry](1-ocp-ai-operator-components/2-component-configuration.md#activating-the-model-registry)
+    * [1.2.3 Lifecycle Management (Resource Removal)](1-ocp-ai-operator-components/2-component-configuration.md#lifecycle-management-resource-removal)
+    * [1.2.4 Troubleshooting Logic](1-ocp-ai-operator-components/2-component-configuration.md#troubleshooting-logic)
+    
 * 🏎️ Module 2 [Accelerators Integration](2-accelerators-integration/README.md) 
   * [2.1. Enabling Accelerators](2-accelerators-integration/1-enabling-accelerators.md)
     * [2.1.1 Node Feature Discovery](2-accelerators-integration/1-enabling-accelerators.md#node-feature-discovery)
