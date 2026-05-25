@@ -34,4 +34,4 @@
 
 * 🏋️ Module 4 [Distributed Training](4-distributed-training/README.md)
   * [4.1. Enable Distributed Training Components](4-distributed-training/1-enable-distributed-training.md)
-  <!-- * [4.2. Training Runtimes](4-distributed-training/2-distributed-training.md) -->
+  * [4.2. Training Runtimes](4-distributed-training/2-distributed-training.md)
