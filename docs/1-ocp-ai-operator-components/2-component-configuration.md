@@ -1,4 +1,4 @@
-# Component Activation & Configuration
+# Component Configuration
 
 In the previous lab, you established the foundational platform using the Meta-Operator. In this lab, you will dive deeper into the management of the service layer. You will learn how to dynamically activate additional components, manage their lifecycle via the `DataScienceCluster` (DSC) resource, and apply technical troubleshooting logic to identify reconciliation issues.
 
@@ -7,7 +7,7 @@ In the previous lab, you established the foundational platform using the Meta-Op
 The DSC resource is the "source of truth" for which AI services are active.
 
 1. Log in to the OpenShift Web Console as a `cluster-admin`.
-2. Navigate to **Ecosystem** → **Operators** → **Installed Operators** → **Red Hat OpenShift AI** .
+2. Navigate to **Ecosystem** → **Installed Operators** → **Red Hat OpenShift AI** .
 3. Click on  **Red Hat OpenShift AI** .
 4. Click the **Data Science Cluster** tab.
 5. Click the name of your instance (e.g., `default-dsc`).
@@ -17,7 +17,7 @@ The DSC resource is the "source of truth" for which AI services are active.
 
 The Model Registry is a vital part of the MLOps workflow, acting as a central repository for model metadata, versioning, and tracking.
 
-**Task:** Transition the Model Registry from its initial state to a functional state.
+To activate the Model Registry and transition it to a functional state, perform the following steps:
 
 1. In the YAML editor, search for the `modelregistry` component.
 2. Change the `managementState` from `Removed` to `Managed`.
@@ -38,9 +38,7 @@ The Model Registry is a vital part of the MLOps workflow, acting as a central re
 
 ## Lifecycle Management (Resource Removal)
 
-Infrastructure efficiency often requires removing unused services. Observe how the Operator reclaims resources.
-
-**Task:** Temporarily disable a component to observe the Operator's cleanup logic.
+Infrastructure efficiency often requires removing unused services. In this task, you will disable a component to observe how the Operator automatically reclaims resources and executes its cleanup logic:
 
 1. In the YAML editor for `default-dsc`, locate the `trustyai` component.
 2. Change the `managementState` from `Managed` to `Removed`.

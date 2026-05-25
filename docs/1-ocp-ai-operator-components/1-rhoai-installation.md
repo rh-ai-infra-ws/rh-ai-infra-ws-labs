@@ -41,7 +41,7 @@ The Operator acts as the control plane for all AI services. We will install it u
    rhods-operator-8687948655-xhjvz   1/1     Running   0          26m
 ```
 
-8. Switch to  Operator interface by navigating to: **Ecosystem** → **Operators** → **Installed Operators** → **Red Hat OpenShift AI**.
+8. Switch to  Operator interface by navigating to: **Ecosystem** → **Installed Operators** → **Red Hat OpenShift AI**.
 
 ![openshift-ai-operator.png](images/rhoai-dsc-1.png)
 
@@ -69,14 +69,18 @@ Follow these steps to review the existing configuration and ensure it is properl
 
 6. Navigate back to the resource details page and verify that the Phase is currently reporting as `Ready`.
 
-## Foundational Component Deployment (DataScienceCluster)
+## Initializing the DataScienceCluster
 
 The `DataScienceCluster` (DSC) resource is the main configuration file where you define the service layers that will be active in your environment.
 
 1. Navigate to the **Data Science Cluster** tab in the Operator interface.
 2. Click  **Create DataScienceCluster** .
 3. Select  **YAML view** .
-4. **Lab Scenario:** We will enable the key minimal required for development (Dashboard, Workbenches, and Pipelines). Use the following YAML template:
+4. We will enable a limited set of components:
+    - Dashboard
+    - Workbenches
+    - Pipelines
+    - TrustyAI
 
 ```yaml
   kind: DataScienceCluster

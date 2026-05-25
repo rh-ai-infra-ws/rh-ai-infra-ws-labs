@@ -2,7 +2,7 @@
   * [1.1. OpenShift AI Installation](1-ocp-ai-operator-components/1-rhoai-installation.md)
     * [1.1.1 Install the Red Hat OpenShift AI Operator](1-ocp-ai-operator-components/1-rhoai-installation.md#install-the-red-hat-openshift-ai-operator)
     * [1.1.2 Verify the Environment Initialization (DSCInitialization)](1-ocp-ai-operator-components/1-rhoai-installation.md#verify-the-environment-initialization-dscinitialization)
-    * [1.1.3 Foundational Component Deployment (DataScienceCluster)](1-ocp-ai-operator-components/1-rhoai-installation.md#foundational-component-deployment-datasciencecluster)
+    * [1.1.3 Initializing DataScienceCluster](1-ocp-ai-operator-components/1-rhoai-installation.md#Initializing-the-datasciencecluster)
     * [1.1.4 Verification](1-ocp-ai-operator-components/1-rhoai-installation.md#verification)
   * [1.2. Component Configuration](1-ocp-ai-operator-components/2-component-configuration.md)
     * [1.2.1 Navigating the DataScienceCluster (DSC)](1-ocp-ai-operator-components/2-component-configuration.md#navigating-the-datasciencecluster-dsc)
