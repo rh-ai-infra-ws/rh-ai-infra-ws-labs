@@ -1,6 +1,7 @@
-# 🚀 Run a TrainJob
+# 🚀 Run a TrainJob (Kubeflow Trainer v2)
 
-This exercise submits a minimal distributed PyTorch `TrainJob` using the `torch-distributed` `ClusterTrainingRuntime`. The script initializes NCCL, prints rank and GPU information, and runs `all_reduce` across workers.
+In this lab you’ll submit a distributed PyTorch `TrainJob` using the `torch-distributed` `ClusterTrainingRuntime` 🎛️.  
+You’ll run a tiny **DDP** training loop (Fashion-MNIST) across **2 nodes** with **1 GPU each** and confirm the pods/logs look healthy ✅
 
 ## Prerequisites
 
@@ -9,8 +10,7 @@ This exercise submits a minimal distributed PyTorch `TrainJob` using the `torch-
 - GPUs available in the cluster and a project namespace (for example `${USER_NAME}-training`)
 - Sufficient quota for at least two nodes with one GPU each (adjust `numNodes` and GPU counts for your environment)
 
-
-## Verify ClusterTrainingRuntimes
+## ✅ Verify ClusterTrainingRuntimes
 
 Kubeflow Trainer v2 ships pre-built `ClusterTrainingRuntime` resources. List them:
 
@@ -45,9 +45,9 @@ Inspect the default PyTorch runtime:
 oc get clustertrainingruntime torch-distributed -o yaml
 ```
 
-?> You do not create `torch-distributed` yourself. Platform administrators enable it when `trainingoperator` is `Managed`. Custom project needs can use namespace-scoped `TrainingRuntime` resources (covered in the next section).
+?> You do not create `torch-distributed` yourself. Platform administrators enable it when `trainingoperator` is `Managed`. For custom project needs you can use namespace-scoped `TrainingRuntime` resources
 
-## Create a project for training jobs and a LocalQueue for KF Train workloads
+## 🏗️ Create a project and a LocalQueue (Kueue admission)
 
 1. Create a dedicated namespace for this lab:
 
@@ -64,7 +64,8 @@ metadata:
 EOF
 ```
 
-2. Kueue uses **LocalQueues** to admit workloads from a namespace into a shared **ClusterQueue**. This one routes KF training requests to the default cluster queue.
+2. Create a **LocalQueue** so Kueue can admit workloads from your namespace into a shared **ClusterQueue** 🎟️  
+   This example routes KF training requests to the `default` cluster queue.
 
 ```bash
 cat << 'EOF' | oc apply -n <USER_NAME>-kfpv2-train -f -
@@ -78,7 +79,13 @@ spec:
 EOF
 ```
 
-?> It is possible to review the logs in the kueue-controller-manager pods in the namespace openshift-kueue-operator
+✅ Quick check:
+
+```bash
+oc get localqueue -n <USER_NAME>-kfpv2-train
+```
+
+?> (Optional) If something gets stuck in `Pending`, Kueue controller logs can help 🔍
 
 ```bash
 oc logs -n openshift-kueue-operator -l control-plane=controller-manager
@@ -94,9 +101,10 @@ oc logs -n openshift-kueue-operator -l control-plane=controller-manager
 {"level":"Level(-2)","ts":"2026-05-26T13:40:46.801740167Z","logger":"localqueue-reconciler","caller":"core/localqueue_controller.go:167","msg":"Reconcile LocalQueue","replica-role":"leader","namespace":"user1-kfpv2-train","name":"kf-train-lq","reconcileID":"5b870a41-001d-41cd-90f2-7f8d83c3555b"}
 ```
 
-## Create the training script ConfigMap
+## 🧠 Create the training script ConfigMap
 
-1. Create a ConfigMap with a train_fashion_mnist distributed training script:
+1. Create a ConfigMap containing a **minimal DDP** Fashion-MNIST script 🧵  
+   It will initialize `torch.distributed`, shard data via `DistributedSampler`, and train for a few epochs.
 
 ```bash
 cat << 'EOF' | oc apply -n <USER_NAME>-kfpv2-train -f-
@@ -106,6 +114,8 @@ metadata:
   name: train-fashion-mnist
 data:
   train.py: |
+    import os
+
     import torch
     import torch.nn as nn
     import torch.distributed as dist
@@ -132,7 +142,6 @@ data:
             logits = self.linear_relu_stack(inputs)
             return logits
 
-
     def get_dataset():
         return datasets.FashionMNIST(
             root="/tmp/data",
@@ -141,60 +150,72 @@ data:
             transform=ToTensor(),
         )
 
-
     def train_func_distributed():
         num_epochs = 3
         batch_size = 64
 
+        # Kubeflow Trainer sets rendezvous env for torchrun; we still need to init the process group.
+        backend = "nccl" if torch.cuda.is_available() else "gloo"
+        dist.init_process_group(backend=backend)
+
         dataset = get_dataset()
 
-        # 1. You must explicitly get the current worker's rank/GPU index
-        # (Assuming torch.distributed.init_process_group() was called at startup)
-        local_rank = int(os.environ["LOCAL_RANK"]) 
-        torch.cuda.set_device(local_rank)
+        # Local rank maps to GPU index on the node.
+        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+        if torch.cuda.is_available():
+            torch.cuda.set_device(local_rank)
+            device = torch.device("cuda", local_rank)
+        else:
+            device = torch.device("cpu")
 
-        # 2. Manually instantiate the DistributedSampler
-        # Note: 'shuffle' moves from the DataLoader to the Sampler
         sampler = DistributedSampler(
-            dataset, 
-            num_replicas=dist.get_world_size(), 
+            dataset,
+            num_replicas=dist.get_world_size(),
             rank=dist.get_rank(),
-            shuffle=True # True for training, False for validation
+            shuffle=True,
         )
 
-        # 3. Create the DataLoader passing the native sampler
-        # CRITICAL: 'shuffle=True' cannot be passed if you are using a sampler
         dataloader = DataLoader(
-            dataset, 
-            batch_size=batch_size, 
+            dataset,
+            batch_size=batch_size,
             sampler=sampler,
-            pin_memory=True # Essential for fast CPU-to-GPU transfers
+            pin_memory=torch.cuda.is_available(),
         )
 
-        # 4. Instantiate your model and move it to the local GPU memory FIRST
         model = NeuralNetwork().to(device)
 
-        # 5. Wrap the model with native PyTorch DDP
-        # 'device_ids' ensures gradients are synchronized only across the assigned GPUs
-        model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+        if torch.cuda.is_available():
+            model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+        else:
+            model = DDP(model)
 
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
         for epoch in range(num_epochs):
-            dataloader.sampler.set_epoch(epoch)
+            sampler.set_epoch(epoch)
 
             for inputs, labels in dataloader:
                 optimizer.zero_grad()
+                inputs = inputs.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
                 pred = model(inputs)
                 loss = criterion(pred, labels)
                 loss.backward()
                 optimizer.step()
-            print(f"epoch: {epoch}, loss: {loss.item()}")
+
+            # Avoid log spam: have rank 0 print a simple progress line.
+            if dist.get_rank() == 0:
+                print(f"epoch: {epoch}, loss: {loss.item():.4f}", flush=True)
+
+        dist.destroy_process_group()
+
+    if __name__ == "__main__":
+        train_func_distributed()
 EOF
 ```
 
-## Submit the TrainJob
+## 🚀 Submit the TrainJob
 
 Create a `TrainJob` that references `torch-distributed`, mounts the script, and requests one GPU per node on two nodes:
 
@@ -216,13 +237,13 @@ spec:
     numNodes: 2
     resourcesPerNode:
       requests:
-        cpu: "2"
-        memory: "8Gi"
-        nvidia.com/gpu: 1
+        cpu: "8"
+        memory: "32Gi"
+        nvidia.com/gpu: 6
       limits:
-        cpu: "2"
-        memory: "8Gi"
-        nvidia.com/gpu: 1
+        cpu: "8"
+        memory: "32Gi"
+        nvidia.com/gpu: 6
   podTemplateOverrides:
     - targetJobs:
         - name: node
@@ -239,7 +260,7 @@ spec:
 EOF
 ```
 
-## Monitor the job
+## 👀 Monitor the job
 
 1. Watch `TrainJob` status:
 
@@ -274,20 +295,18 @@ pytorch-train-fashion-mnist-node-0-1-psrt7         1/1     Running   0          
 oc logs -n <USER_NAME>-kfpv2-train -f <training-pod-name>
 ```
 
-* **Expected log patterns** (ranks and GPU names will differ):
+* **Expected log patterns** (exact numbers vary, only rank 0 logs once per epoch):
 
 ```text
-Rank 0/2
-PyTorch: 2.x.x, CUDA available: True
-GPU: NVIDIA ...
-Rank 0: all_reduce result = 1.0
-Done.
+epoch: 0, loss: 2.30..
+epoch: 1, loss: 2.2..
+epoch: 2, loss: 2.1..
 ```
 
 4. After some time, the TrainJob should finish:
 
 ```bash
-oc get trainjob pytorch-train-fashion-mnist
+oc get trainjob -n <USER_NAME>-kfpv2-train pytorch-train-fashion-mnist
 ```
 
 * **Expected output**
@@ -297,13 +316,13 @@ NAME                          STATE      AGE
 pytorch-train-fashion-mnist   Complete   24m
 ```
 
-5. Review kueue logs to obtain additional information
+5. (Optional) Review Kueue logs for extra details 🧾
 
 ```bash
 oc logs -n openshift-kueue-operator -l control-plane=controller-manager
 ```
 
-* **Excepted output**
+* **Expected output**
 
 ```text
 ...
