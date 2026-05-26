@@ -10,8 +10,6 @@ Before working with pipelines or workbenches, create the Data Science project an
 
 ### 1️⃣ Create the Data Science project
 
-Replace `<USER_NAME>` with your OpenShift username (for example, `jdoe` → namespace `jdoe-ray-train`).
-
 ```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: v1
@@ -21,6 +19,7 @@ metadata:
   labels:
     name: <USER_NAME>-ray-train
     opendatahub.io/dashboard: 'true'
+    kueue.openshift.io/managed: 'true'
 EOF
 ```
 
@@ -40,6 +39,22 @@ metadata:
 spec:
   clusterQueue: default
 EOF
+```
+
+?> It is possible to review the logs in the kueue-controller-manager pods in the namespace openshift-kueue-operator
+
+```bash
+oc logs -n openshift-kueue-operator -l control-plane=controller-manager
+```
+
+* Similar logs expected
+
+```text
+...
+{"level":"Level(-2)","ts":"2026-05-26T13:25:46.795904084Z","logger":"localqueue-reconciler","caller":"core/localqueue_controller.go:215","msg":"LocalQueue create event","replica-role":"leader","localQueue":{"name":"ray-train-lq","namespace":"user1-ray-train"}}
+{"level":"Level(-2)","ts":"2026-05-26T13:25:46.796045481Z","logger":"localqueue-reconciler","caller":"core/localqueue_controller.go:167","msg":"Reconcile LocalQueue","replica-role":"leader","namespace":"user1-ray-train","name":"ray-train-lq","reconcileID":"sdaw35123-179c-4e42-bf92-41e41fd12cd1"}
+{"level":"Level(-2)","ts":"2026-05-26T13:25:46.801669833Z","logger":"localqueue-reconciler","caller":"core/localqueue_controller.go:254","msg":"Queue update event","replica-role":"leader","localQueue":{"name":"ray-train-lq","namespace":"user1-ray-train"}}
+{"level":"Level(-2)","ts":"2026-05-26T13:25:46.801740167Z","logger":"localqueue-reconciler","caller":"core/localqueue_controller.go:167","msg":"Reconcile LocalQueue","replica-role":"leader","namespace":"user1-ray-train","name":"ray-train-lq","reconcileID":"xxq34sad2-001d-41cd-90f2-7f8d83c3555b"}
 ```
 
 ?> 🎫 Think of the LocalQueue as a **ticket window**: your Ray jobs line up here before Kueue decides when they can run.
@@ -129,9 +144,3 @@ After a few minutes, the job should **complete** — review logs and metrics in 
 ?> 📈 Keep an eye on **GPU utilization** and **task timeline** in the dashboard — great way to see data parallelism in action!
 
 6. Review logs with CodeFlare 📋 For programmatic access to job history and logs, follow **`02-review-distributed-trainig.ipynb`**, which uses the CodeFlare SDK to inspect completed runs.
-
----
-
-## 🔁 Pipelines path
-
-🚧 **Work in progress** — this section will cover running the same distributed training flow as an OpenShift AI pipeline. Stay tuned!

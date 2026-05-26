@@ -34,4 +34,5 @@
 
 * 🏋️ Module 4 [Distributed Training](4-distributed-training/README.md)
   * [4.1. Enable Distributed Training Components](4-distributed-training/1-enable-distributed-training.md)
-  * [4.2. Training Runtimes](4-distributed-training/2-distributed-training.md)
+  * [4.2. Ray Distributed Training](4-distributed-training/2-distributed-training-ray.md)
+  * [4.2. KubeFlow Trainer v2](4-distributed-training/3-distributed-training-kfpt2.md)
