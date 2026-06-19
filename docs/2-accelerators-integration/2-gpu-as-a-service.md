@@ -511,12 +511,13 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: llama-vllm-single
+  namespace: team2-genai
   annotations:
     openshift.io/display-name: Llama 3.1 8B FP8 Single
     security.opendatahub.io/enable-auth: "false"
     serving.kserve.io/deploymentMode: RawDeployment
     opendatahub.io/hardware-profile-name: team2-genai-profile
-    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/hardware-profile-namespace: team2-genai
 spec:
   predictor:
     automountServiceAccountToken: false
@@ -576,12 +577,13 @@ apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: llama-vllm-single
+  namespace: team2-genai
   annotations:
     openshift.io/display-name: Llama 3.1 8B FP8 Single
     security.opendatahub.io/enable-auth: "false"
     serving.kserve.io/deploymentMode: RawDeployment
     opendatahub.io/hardware-profile-name: team2-genai-profile
-    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/hardware-profile-namespace: team2-genai
 spec:
   predictor:
     automountServiceAccountToken: false
