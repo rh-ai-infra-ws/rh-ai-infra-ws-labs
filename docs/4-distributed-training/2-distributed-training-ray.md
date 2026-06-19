@@ -59,6 +59,54 @@ oc logs -n openshift-kueue-operator -l control-plane=controller-manager
 
 ?> 🎫 Think of the LocalQueue as a **ticket window**: your Ray jobs line up here before Kueue decides when they can run.
 
+### 3️⃣ Create a HardwareProfile for running Ray workloads
+
+As you already know, Kueue uses **LocalQueues** to admit workloads from a namespace into a shared **ClusterQueue**. It is also required to create a HardwareProfile for running workloads using GPUs and the respective Queues.
+
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  annotations:
+    opendatahub.io/dashboard-feature-visibility: '["workbench","model-serving"]'
+    opendatahub.io/hardware-profile-namespace: 'user1-ray-train'
+    opendatahub.io/managed: 'false'
+  name: user1-ray-train-profile
+  namespace: user1-ray-train
+  labels:
+    app.kubernetes.io/part-of: hardwareprofile
+    app.opendatahub.io/hardwareprofile: 'true'
+    kueue.openshift.io/managed: 'true'
+spec:
+  identifiers:
+    - defaultCount: 2
+      displayName: CPU
+      identifier: cpu
+      maxCount: 4
+      minCount: 1
+      resourceType: CPU
+    - defaultCount: 4Gi
+      displayName: Memory
+      identifier: memory
+      maxCount: 8Gi
+      minCount: 2Gi
+      resourceType: Memory
+    - defaultCount: 2
+      displayName: GPU
+      identifier: nvidia.com/gpu
+      maxCount: 4
+      minCount: 2
+      resourceType: Accelerator
+  scheduling:
+    kueue:
+      localQueueName: ray-train-lq
+      priorityClass: None
+    type: Queue
+EOF
+```
+
 ---
 
 ## 🖥️ Workbench path
@@ -102,7 +150,15 @@ Open the OpenShift console → click your username (top right) → **Copy login 
 
 1. Clone the demo repository [distributed-training-demo](https://github.com/rh-ai-infra-ws/distributed-training-demo) into your workbench workspace 📥.
 
+![notebook-clone-repo.png](./images/notebook-clone-repo.png)
+
+After cloning the repository, you should see the `distributed-training-demo` folder in the left-hand panel.
+
 2. Deploy the Ray cluster ⚡ Open and follow **`00-setup-ray.ipynb`** in Jupyter. This notebook uses the CodeFlare SDK to create a Ray cluster in your namespace.
+
+!> Access to the Ray Cluster Dashboards (*SPOILER* You'll need it in next steps)
+
+![ray-cluster.png](images/ray-cluster.png)
 
 3. Verify Ray pods are healthy 🩺
 

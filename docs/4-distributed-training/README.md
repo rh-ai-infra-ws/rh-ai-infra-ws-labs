@@ -25,3 +25,5 @@ This module builds on a cluster with OpenShift AI and GPU accelerators already c
 * Node Feature Discovery Operator installed
 
 > The required components are fully available within the "Red Hat OpenShift AI 3" catalog item on demo.redhat.com and it is possible to find the content slides in the following [link](https://docs.google.com/presentation/d/1huYUx2eKdKCgHiuiWHNJM_-3IHhdsR022Sm_Yug5Kf0/edit?usp=sharing) 
+
+!> If you are following the full laboratory using "Red Hat OpenShift Container Platform Cluster (AWS)", including "Accelerators Integration" chapter, it is required to create an additional g6.12xlarge node (2 in total)
