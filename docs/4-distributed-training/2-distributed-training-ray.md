@@ -84,6 +84,18 @@ You can reuse an existing workbench in a project that already runs a **Standard 
    | **GPU requests** | 2 *(expand Customize resource requests and limits)* |
    | **GPU limits** | 4 |
 
+?> 📂 Patch **`OdhDashboardConfig`** in order to:
+* Stop showing the "Kueue is disabled" banner on Kueue-managed projects
+* Enable LocalQueue/Workload API polling for those projects
+* Allow creating workbenches and deploying models from the UI
+* Remove the "feature flag is disabled" info alert on Hardware Profile editing
+
+```bash
+oc patch OdhDashboardConfig odh-dashboard-config --type='merge' -p '{"spec":{"dashboardConfig": {"disableKueue":false}}}' -n redhat-ods-applications
+```
+
+EOF
+
 4. ▶️ When the workbench status shows **Running**, click its name to open the JupyterLab environment.
 
 ?> 🎯 **Why 2–4 GPUs on the workbench?** The notebook needs enough local GPU headroom to orchestrate Ray while workers run on the cluster. Your instructor may suggest different values for your environment.
