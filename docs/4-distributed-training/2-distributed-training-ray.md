@@ -63,7 +63,6 @@ oc logs -n openshift-kueue-operator -l control-plane=controller-manager
 
 As you already know, Kueue uses **LocalQueues** to admit workloads from a namespace into a shared **ClusterQueue**. It is also required to create a HardwareProfile for running workloads using GPUs and the respective Queues.
 
-
 ```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: infrastructure.opendatahub.io/v1
@@ -107,6 +106,19 @@ spec:
 EOF
 ```
 
+### 4️⃣ Allow RHOAI Dashboard to manage Kueue Resources
+
+📂 Patch **`OdhDashboardConfig`** in order to:
+
+* Stop showing the "Kueue is disabled" banner on Kueue-managed projects
+* Enable LocalQueue/Workload API polling for those projects
+* Allow creating workbenches and deploying models from the UI
+* Remove the "feature flag is disabled" info alert on Hardware Profile editing
+
+```bash
+oc patch OdhDashboardConfig odh-dashboard-config --type='merge' -p '{"spec":{"dashboardConfig": {"disableKueue":false}}}' -n redhat-ods-applications
+```
+
 ---
 
 ## 🖥️ Workbench path
@@ -131,18 +143,6 @@ You can reuse an existing workbench in a project that already runs a **Standard 
    | **Hardware profile** | `gpu-profile` |
    | **GPU requests** | 2 *(expand Customize resource requests and limits)* |
    | **GPU limits** | 4 |
-
-?> 📂 Patch **`OdhDashboardConfig`** in order to:
-* Stop showing the "Kueue is disabled" banner on Kueue-managed projects
-* Enable LocalQueue/Workload API polling for those projects
-* Allow creating workbenches and deploying models from the UI
-* Remove the "feature flag is disabled" info alert on Hardware Profile editing
-
-```bash
-oc patch OdhDashboardConfig odh-dashboard-config --type='merge' -p '{"spec":{"dashboardConfig": {"disableKueue":false}}}' -n redhat-ods-applications
-```
-
-EOF
 
 4. ▶️ When the workbench status shows **Running**, click its name to open the JupyterLab environment.
 
