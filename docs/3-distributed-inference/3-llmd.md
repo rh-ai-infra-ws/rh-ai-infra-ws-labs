@@ -60,3 +60,42 @@ curl ${LLMD_URL}/v1/completions \
     "temperature": 0.7
   }' | jq .
 ```
+
+## Monitoring
+
+Red Hat OpenShift AI 3.5 includes built-in observability dashboards for Distributed Inference with llm-d deployments. The dashboards appear in the OpenShift AI Observe & Monitor section and offer pre-built views for monitoring traffic health, latency, and resource utilization without deploying a separate Grafana instance.
+
+For enabling these dashboard, complete the following steps:
+
+1. Create user monitoring stack adding `enableUserWorkload: true` under `data/config.yaml` to enable monitoring for user-defined projects in a cluster:
+
+```bash
+oc apply -f - <<EOF                                                
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config      
+  namespace: openshift-monitoring              
+data:
+  config.yaml: |
+    enableUserWorkload: true
+EOF
+````
+
+2. Verify that the prometheus-operator, prometheus-user-workload, and thanos-ruler-user-workload pods are running in the openshift-user-workload-monitoring project. It might take a short while for the pods to start:
+
+```bash
+oc -n openshift-user-workload-monitoring get pod
+```
+
+3. Access to **Openshift Console -> Observe -> Dashboards -> Model Serving LLMs Model Performance Usage**
+
+![llmd-features.png](images/llmd-performance-dashboard.png)
+
+### Clean-Up
+
+Having explored this powerful solution, you can now proceed to decommission and remove all deployed resources...
+
+```bash
+oc delete LLMInferenceService llama-llm-d
+```

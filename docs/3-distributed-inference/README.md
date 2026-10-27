@@ -22,10 +22,12 @@ The final module covers **Benchmark** frameworks for evaluating LLM performance.
 
 The core focus of this laboratory is to test distributed inference capabilities, which necessitates the deployment of the following required assets:
 
-* Red Hat Openshift 4.20
-* Red Hat Openshift AI 3.3.2
+* Red Hat Openshift 4.22+
+* Red Hat Openshift AI 3.5+
 * Accelerators Configured (NVIDIA Operator + gpu-cluster-policy)
 * Node Feature Discovery Operator + nfd-instance
 * Red Hat OpenShift Service Mesh 3.1.0 + openshift-gateway control plane
 
 > The required components are fully available within the "Red Hat OpenShift AI 3" catalog item on demo.redhat.com and it is possible to find the content slides in the following [link](https://docs.google.com/presentation/d/1huYUx2eKdKCgHiuiWHNJM_-3IHhdsR022Sm_Yug5Kf0/edit?usp=sharing) 
+
+> Alternatively, it is possible to use the "Red Hat OpenShift Container Platform Cluster (AWS)" catalog item on demo.redhat.com and go through module 1 and module 2. 

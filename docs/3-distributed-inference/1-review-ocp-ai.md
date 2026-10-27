@@ -70,7 +70,43 @@ By examining these components, the review explains how the Predictor, Transforme
 oc new-project <USER_NAME>
 ```
 
-2. Create a `ServingRuntime` to expose a new runtime for model deployment:
+2. Create the respective Hardware Profile
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: infrastructure.opendatahub.io/v1
+kind: HardwareProfile
+metadata:
+  annotations:
+    opendatahub.io/dashboard-feature-visibility: '[]'
+    opendatahub.io/disabled: 'false'
+    opendatahub.io/display-name: gpu-profile
+  name: gpu-profile
+  namespace: redhat-ods-applications
+spec:
+  identifiers:
+    - defaultCount: '1'
+      displayName: CPU
+      identifier: cpu
+      maxCount: '8'
+      minCount: 1
+      resourceType: CPU
+    - defaultCount: 12Gi
+      displayName: Memory
+      identifier: memory
+      maxCount: 16Gi
+      minCount: 1Gi
+      resourceType: Memory
+    - defaultCount: 1
+      displayName: GPU
+      identifier: nvidia.com/gpu
+      maxCount: 4
+      minCount: 1
+      resourceType: Accelerator
+EOF
+```
+
+3. Create a `ServingRuntime` to expose a new runtime for model deployment:
 
 ```bash
 cat << 'EOF' | oc apply -n <USER_NAME> -f-
@@ -80,7 +116,7 @@ metadata:
   annotations:
     opendatahub.io/apiProtocol: REST
     opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
-    opendatahub.io/runtime-version: v3.2.4
+    opendatahub.io/runtime-version: v3.3.0
     opendatahub.io/serving-runtime-scope: global
     openshift.io/display-name: RHAIIS (vLLM) NVIDIA GPU ServingRuntime for KServe
     openshift.io/template-display-name: RHAIIS (vLLM) NVIDIA GPU ServingRuntime for KServe
@@ -110,7 +146,7 @@ spec:
       value: "1"
     - name: VLLM_NO_USAGE_STATS
       value: "1"
-    image: registry.redhat.io/rhaiis/vllm-cuda-rhel9:3.2.4
+    image: registry.redhat.io/rhaiis/vllm-cuda-rhel9:3.3.0
     name: kserve-container
     ports:
     - containerPort: 8000
@@ -122,7 +158,7 @@ spec:
 EOF
 ```
 
-3. Verify the runtime was created.
+4. Verify the runtime was created.
 
 ```bash
 oc get ServingRuntime -n <USER_NAME>
@@ -135,11 +171,11 @@ NAMESPACE     NAME         DISABLED   MODELTYPE   CONTAINERS         AGE
 <USER_NAME>      rhaiis-cuda             vLLM        kserve-container   118s
 ```
 
-4. As mentioned, it is time to create the inference service that links a specific model with a runtime, defining the main configuration for the service. Please create the following example and verify the configuration:
+5. As mentioned, it is time to create the inference service that links a specific model with a runtime, defining the main configuration for the service. Please create the following example and verify the configuration:
 
 [vLLM manifest](_createvllm.md ':include')
 
-5. Review the kserve controller manager pod to understand what is happening under the hood:
+6. Review the kserve controller manager pod to understand what is happening under the hood:
 
 ```bash
 oc logs -n redhat-ods-applications -l app.kubernetes.io/name=kserve-controller-manager -f --tail=50
