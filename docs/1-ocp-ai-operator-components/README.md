@@ -43,10 +43,13 @@ To successfully complete this lab and install the foundational AI infrastructure
 
 ### 1. Cluster Requirements
 
-* Platform: Red Hat OpenShift Container Platform on a supported environment.
+* Platform: Red Hat OpenShift Container Platform 4.22+ on a supported environment.
 * Minimum Capacity: * At least 2 worker nodes.
 * 8 CPUs and 32 GiB RAM per node.
 * Storage: A default StorageClass must be configured with support for dynamic provisioning.
+
+> The required components are fully available within the "Red Hat OpenShift Container Platform Cluster (AWS)" catalog item on demo.redhat.com. 
+> Finally, it is possible to find the content slides in the following [link](https://docs.google.com/presentation/d/1WCF5rE81zg9ahllfWI_FAqOwn1ZL-_DspY1eYoWpQPs/edit?usp=sharing) 
 
 ### 2. Access & Permissions
 
