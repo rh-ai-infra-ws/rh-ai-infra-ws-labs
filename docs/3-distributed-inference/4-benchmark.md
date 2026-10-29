@@ -340,7 +340,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: guidellm-llm-d
-  namespace: <USER_NAME>
+  namespace: user1
+#  namespace: <USER_NAME>
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 86400
@@ -351,19 +352,18 @@ spec:
         - name: guidellm
           image: ghcr.io/vllm-project/guidellm:latest
           env:
-            - name: GUIDELLM_TARGET
-              value: "${LLMD_URL}"     # <-------------------------------- Replace HERE !!!
-            - name: GUIDELLM_PROFILE
-              value: concurrent
-            - name: GUIDELLM_RATE
-              value: "32,64"
-            - name: GUIDELLM_OUTPUTS
-              value: json,csv
-            - name: GUIDELLM_MAX_SECONDS
-              value: "30"
-            - name: GUIDELLM_DATA
-              value: "prompt_tokens=512,output_tokens=256"
-            - name: GUIDELLM_PROCESSOR
+            - name: GUIDELLM__SPEC__BACKEND
+              value: '{"kind": "openai_http", "target": "http://ad73cfa8ab65b4aa2bed08540314ff8e-1408741115.us-east-2.elb.amazonaws.com/user1/llama-llm-d", "model": "llama-3-1-8b-instruct-fp8"}'  # <-------------------------------- Replace HERE !!!${LLMD_URL}
+              value: '{"kind": "openai_http", "target": "${LLMD_URL}", "model": "llama-3-1-8b-instruct-fp8"}'  # <-------------------------------- Replace HERE !!!
+            - name: GUIDELLM__SPEC__PROFILE
+              value: '{"kind": "concurrent", "streams": [1, 2, 4, 8]}'
+            - name: GUIDELLM__SPEC__CONSTRAINTS
+              value: '[{"kind": "max_duration", "seconds": 30}]'
+            - name: GUIDELLM__SPEC__DATA
+              value: '[{"kind": "synthetic_text", "prompt_tokens": 512, "output_tokens": 256}]'
+            - name: GUIDELLM__SPEC__TOKENIZER__KIND
+              value: "huggingface_auto"
+            - name: GUIDELLM__SPEC__TOKENIZER__MODEL
               value: "RedHatAI/Meta-Llama-3.1-8B-Instruct-FP8-dynamic"
             - name: HF_HOME
               value: /tmp/hf-cache
