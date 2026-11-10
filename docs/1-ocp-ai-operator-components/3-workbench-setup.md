@@ -83,6 +83,8 @@ From the terminal inside VS Code, verify that the required CLI tools are availab
    oc login -u admin --server=<API_URL>
    ```
 
+   ?> 📋 **The rendered command should look like this:** `oc login -u admin --server=<API_URL>`. If the `--server` value shows a placeholder in angle brackets instead of a URL, set the **Cluster Domain** at the top of the home page before running it.
+
 4. Verify the connection:
 
    ```bash

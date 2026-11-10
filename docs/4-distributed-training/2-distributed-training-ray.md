@@ -154,11 +154,15 @@ You can reuse an existing workbench in a project that already runs a **Standard 
 
 Now we'll use the workbench to deploy a Ray cluster and kick off distributed training.
 
-!> 🔑 **Do this first:** grab your **OpenShift API token** and **API server URL** before going further.
+!> 🔑 **Do this first:** grab your **OpenShift API token** and **API server URL** before going further. You will need both in the setup notebook.
 
-Open the OpenShift console → click your username (top right) → **Copy login command** → run it in a terminal and save the token and server URL. You will need them in the setup notebook.
+The easiest way is to take them from the OpenShift console: click your username (top right) → **Copy login command** → **Display Token**. The page shows a ready-made command with your token and the server URL:
 
-![ocp_token.png](images/ocp_token.png)
+```bash
+oc login --token=sha256~<YOUR_TOKEN> --server=<API_URL>
+```
+
+?> 💡 The `--server` value above is filled in from the **Cluster Domain** on the home page. If it still shows a placeholder instead of a URL, set the Cluster Domain at the top of the page, or use the `--server` value from the console. It looks like `https://api.ocp.example.com:6443`.
 
 1. Clone the demo repository [distributed-training-demo](https://github.com/rh-ai-infra-ws/distributed-training-demo) into your workbench workspace 📥.
 
