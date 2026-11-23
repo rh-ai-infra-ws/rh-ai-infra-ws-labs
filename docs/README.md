@@ -19,3 +19,7 @@ The **Accelerators Integration with Openshift AI module** is a core part of the 
 ##  🏋️  Module 4 - [ Distributed Training](4-distributed-training/README.md)
 
 **Distributed Training with OpenShift AI** covers scaling model training across multiple nodes and GPUs. Participants enable distributed-workloads components in the DataScienceCluster, explore different templates for creating jobs and managing cluster resources, and run a hands-on distributed training tasks with Kueue-backed resource admission.
+
+##  🔐  Module 5 - [ Models-as-a-Service](5-models-as-a-service/README.md)
+
+**Models-as-a-Service (MaaS) with OpenShift AI** This module covers deploying and managing OpenShift AI Models as a Service, from initial configuration through to monitoring. Participants will learn how to configure the gateway infrastructure, deploy models with MaaS governance, create and manage subscriptions with token limits, implement authorization policies for API gateway access, manage API keys for programmatic access, and enable observability for cost attribution and usage tracking. The hands-on labs demonstrate how MaaS acts as a governance layer that enforces centralized policies, provides self-service API key management, and enables usage monitoring.
