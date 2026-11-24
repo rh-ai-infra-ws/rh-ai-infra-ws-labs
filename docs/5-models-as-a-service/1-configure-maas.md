@@ -729,6 +729,64 @@ NAME                              READY   STATUS    RESTARTS   AGE
 maas-controller-7b8f5c9d8-xk4pl   1/1     Running   0          4m
 ```
 
+### Dashboard configuration for Models-as-a-Service
+
+To access Models-as-a-Service (MaaS) features in the OpenShift AI dashboard, you must enable the required dashboard configuration flags in the OdhDashboardConfig custom resource.
+
+1. Enable components in the 
+
+```bash
+oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type=merge --patch '{
+  "spec": {
+    "dashboardConfig": {
+      "modelAsService": true,
+      "observabilityDashboard": true
+    }
+  }
+}'
+```
+
+### Verify Models-as-a-Service deployment
+
+After you deploy Models-as-a-Service, you can run a series of checks to confirm that the required custom resources, monitoring components, and tenant configuration are in place.
+
+1. Verify that the MaaS component is enabled in the DataScienceCluster custom resource:
+
+```bash
+oc get dsc default-dsc -o jsonpath='{.status.conditions[?(@.type=="ModelsAsAServiceReady")]}' | jq
+```
+
+Expected output shows the ModelsAsAServiceReady condition with status: "True":
+
+```yaml
+{
+  "lastTransitionTime": "2026-11-24T14:22:59Z",
+  "message": "modelsAsAService is Managed and deployments are available",
+  "reason": "Ready",
+  "status": "True",
+  "type": "ModelsAsAServiceReady"
+}
+```
+
+2. Verify that the Models-as-a-Service (MaaS) custom resource definitions (CRDs) are installed:
+
+```bash
+$ oc get crd | grep -E 'maas.opendatahub.io|aitenants'
+```
+
+Expected output:
+
+```bash
+aitenants.maas.opendatahub.io                                                      2026-11-24T14:22:06Z
+configs.maas.opendatahub.io                                                        2026-11-24T14:22:06Z
+externalmodels.maas.opendatahub.io                                                 2026-11-24T14:22:06Z
+maasauthpolicies.maas.opendatahub.io                                               2026-11-24T14:22:06Z
+maasmodelrefs.maas.opendatahub.io                                                  2026-11-24T14:22:07Z
+maassubscriptions.maas.opendatahub.io                                              2026-11-24T14:22:07Z
+maastenantconfigs.maas.opendatahub.io                                              2026-11-24T14:22:07Z
+tenants.maas.opendatahub.io                                                        2026-11-24T14:22:07Z
+```
+
 ### Verify Default Tenant Configuration
 
 1. Verify that the default tenant configuration was created:
