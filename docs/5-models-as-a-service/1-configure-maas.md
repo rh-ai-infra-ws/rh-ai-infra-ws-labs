@@ -1,78 +1,140 @@
 # ⚙️ Configure Models-as-a-Service
 
-This lab guides you through the initial configuration of Models-as-a-Service (MaaS) in Red Hat OpenShift AI. You will configure the platform infrastructure, set up TLS for secure communication, configure the database connection, and enable MaaS components in the DataScienceCluster.
+This lab guides you through the initial configuration of Models-as-a-Service (MaaS) in Red Hat OpenShift AI. You will install the Red Hat Connectivity Link Operator, the Leader Worker Set Operator, and a PostgreSQL database, configure the platform infrastructure, set up TLS for secure communication, configure the database connection, and enable MaaS components in the DataScienceCluster.
 
-## Verify  Prerequisites
+## Install required dependencies
 
-Before configuring MaaS, verify that the following key CRDs have been registered:
+Install the Red Hat Connectivity Link Operator, the Leader Worker Set Operator, and a PostgreSQL database before you configure MaaS. OpenShift AI does not install these for you.
+
+### Install the Red Hat Connectivity Link Operator
+
+Models-as-a-Service (MaaS) in Red Hat OpenShift AI uses Red Hat Connectivity Link (Kuadrant) for authentication, authorization, and rate limiting. Install operator version 1.4.x manually in the `openshift-operators` namespace.
+
+?> 📎 `openshift-operators` already has a global OperatorGroup. Do not create another OperatorGroup in that namespace.
+
+1. Create the Subscription. Channel `stable-1.4` selects Connectivity Link 1.4.x:
 
 ```bash
-# RHOAI
-oc get crd datascienceclusters.datasciencecluster.opendatahub.io
-
-# Connectivity Link
-oc get crd kuadrants.kuadrant.io
-
-# cert-manager
-oc get crd certificates.cert-manager.io
-
-# Leader Worker Set
-oc get crd leaderworkersetoperators.operator.openshift.io
-```
-
-?> 📎 If the required operator dependencies are missing, install the following via the **Software Catalog**:
-
-- **Red Hat Connectivity Link**
-- **cert-manager Operator for Red Hat OpenShift**
-- **Leader Worker Set Operator (LWS) Operator**
-- **Red Hat OpenShift AI**
-
-### Enabling User Workload Monitoring
-
-User Workload Monitoring is mandatory for MaaS to collect and expose token rate-limiting metrics. If User Workload Monitoring is disabled, the MaaS deployment will show a `Degraded` status.
-
-To verify and enable User Workload Monitoring, edit the cluster monitoring configuration map in the `openshift-monitoring` namespace:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
+cat << 'EOF' | oc apply -f-
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
 metadata:
-  name: cluster-monitoring-config
-  namespace: openshift-monitoring
-data:
-  config.yaml: |
-    enableUserWorkload: true
+  name: rhcl-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: rhcl-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+EOF
 ```
 
-#### Verify User Workload Monitoring
-
-MaaS requires User Workload Monitoring to collect and expose usage metrics.
-
-1. Verify that User Workload Monitoring is enabled:
+2. Wait until the ClusterServiceVersion reports `Succeeded`:
 
 ```bash
-oc get configmap cluster-monitoring-config -n openshift-monitoring -o yaml | grep enableUserWorkload
+oc get csv -n openshift-operators -o custom-columns=NAME:.metadata.name,VERSION:.spec.version,PHASE:.status.phase | grep rhcl-operator
+```
+
+Expected output (the patch version can differ):
+
+```text
+rhcl-operator.v1.4.3                1.4.3     Succeeded
+```
+
+3. Confirm the operator pod is running:
+
+```bash
+oc get pods -n openshift-operators | grep kuadrant-operator
+```
+
+?> ✅ You should see a `kuadrant-operator-controller-manager` pod in the **Running** state. The operator also installs Authorino, Limitador, and the DNS operator. You create the Kuadrant custom resource later in this lab.
+
+### Install the Leader Worker Set Operator
+
+Models published to MaaS run as an `LLMInferenceService` with distributed inference (`llm-d`). llm-d uses a LeaderWorkerSet to run one model replica as a leader pod plus worker pods across GPUs or nodes. Install the Leader Worker Set Operator manually in the `openshift-lws-operator` namespace.
+
+?> 📎 Install the **cert-manager Operator for Red Hat OpenShift** before this operator. Leader Worker Set uses cert-manager for its metrics certificates. This lab assumes cert-manager is already present from the earlier modules.
+
+1. Create the namespace, OperatorGroup, and Subscription. Channel `stable-v1.0` selects Leader Worker Set Operator 1.0:
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-lws-operator
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: leader-worker-set
+  namespace: openshift-lws-operator
+spec:
+  targetNamespaces:
+  - openshift-lws-operator
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: leader-worker-set
+  namespace: openshift-lws-operator
+spec:
+  channel: stable-v1.0
+  installPlanApproval: Automatic
+  name: leader-worker-set
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+EOF
+```
+
+2. Wait until the ClusterServiceVersion reports `Succeeded`:
+
+```bash
+oc get csv -n openshift-lws-operator -o custom-columns=NAME:.metadata.name,VERSION:.spec.version,PHASE:.status.phase | grep leader-worker-set
+```
+
+Expected output (the patch version can differ):
+
+```text
+leader-worker-set.v1.0.1   1.0.1   Succeeded
+```
+
+3. Create the `LeaderWorkerSetOperator` custom resource. The operator does not start the controller until this resource exists:
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: operator.openshift.io/v1
+kind: LeaderWorkerSetOperator
+metadata:
+  name: cluster
+  namespace: openshift-lws-operator
+spec:
+  managementState: Managed
+EOF
+```
+
+4. Confirm both deployments are available:
+
+```bash
+oc get deployments -n openshift-lws-operator
 ```
 
 Expected output:
 
 ```text
-  enableUserWorkload: true
+NAME                     READY   UP-TO-DATE   AVAILABLE   AGE
+lws-controller-manager   2/2     2            2           61s
+openshift-lws-operator   1/1     1            1           4m
 ```
 
-2. Verify that user workload monitoring pods are running:
+?> ✅ `openshift-lws-operator` is the operator pod. `lws-controller-manager` is the controller that reconciles `LeaderWorkerSet` resources for llm-d.
 
-```bash
-oc get pods -n openshift-user-workload-monitoring
-```
+### Install PostgreSQL
 
-?> ✅ You should see **prometheus-user-workload** and **thanos-ruler** pods running.
+Models-as-a-Service (MaaS) in Red Hat OpenShift AI requires a PostgreSQL database (version 14 or later) for API key lifecycle management.
 
-### PostgreSQL Deployment for MaaS
-
-MaaS requires a PostgreSQL database (version 14 or later) for API key lifecycle management.
-
-?> 📎 OpenShift AI does not provide a PostgreSQL database. You must provision and manage your own PostgreSQL instance. The database can be deployed within OpenShift or as an external service. 
+?> 📎 OpenShift AI does not provide a PostgreSQL database. You must provision and manage your own PostgreSQL instance. The database can be deployed within OpenShift or as an external service.
 
 For lab purposes, set up a temporary PostgreSQL database as outlined in the subsection below to complete the lab.
 
@@ -110,7 +172,8 @@ oc create secret generic maas-db-config \
 
 #### 3. Create Storage
 
-```yaml
+```bash
+cat << 'EOF' | oc apply -f-
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -124,13 +187,15 @@ spec:
   resources:
     requests:
       storage: 1Gi
+EOF
 ```
 
 ---
 
 #### 4. Deploy PostgreSQL
 
-```yaml
+```bash
+cat << 'EOF' | oc apply -f-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -202,13 +267,15 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: postgres-data
+EOF
 ```
 
 ---
 
 #### 5. Create Service
 
-```yaml
+```bash
+cat << 'EOF' | oc apply -f-
 apiVersion: v1
 kind: Service
 metadata:
@@ -222,6 +289,7 @@ spec:
   ports:
     - port: 5432
       targetPort: 5432
+EOF
 ```
 
 ---
@@ -239,19 +307,94 @@ oc exec -n maas-postgres deployment/postgres -- \
 
 ---
 
+## Verify  Prerequisites
+
+Before configuring MaaS, verify that the following key CRDs have been registered:
+
+```bash
+# RHOAI
+oc get crd datascienceclusters.datasciencecluster.opendatahub.io
+
+# Connectivity Link
+oc get crd kuadrants.kuadrant.io
+
+# cert-manager
+oc get crd certificates.cert-manager.io
+
+# Leader Worker Set
+oc get crd leaderworkersetoperators.operator.openshift.io
+```
+
+?> 📎 The Red Hat Connectivity Link Operator and the Leader Worker Set Operator are installed in the previous section. If any other required operator dependency is missing, install it via the **Software Catalog**:
+
+- **cert-manager Operator for Red Hat OpenShift**
+- **Red Hat OpenShift AI**
+
+### Enabling User Workload Monitoring
+
+User Workload Monitoring is mandatory for MaaS to collect and expose token rate-limiting metrics. If User Workload Monitoring is disabled, the MaaS deployment will show a `Degraded` status.
+
+To verify and enable User Workload Monitoring, edit the cluster monitoring configuration map in the `openshift-monitoring` namespace:
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: true
+EOF
+```
+
+#### Verify User Workload Monitoring
+
+MaaS requires User Workload Monitoring to collect and expose usage metrics.
+
+1. Verify that User Workload Monitoring is enabled:
+
+```bash
+oc get configmap cluster-monitoring-config -n openshift-monitoring -o yaml | grep enableUserWorkload
+```
+
+Expected output:
+
+```text
+  enableUserWorkload: true
+```
+
+2. Verify that user workload monitoring pods are running:
+
+```bash
+oc get pods -n openshift-user-workload-monitoring
+```
+
+Expected output:
+
+```text
+NAME                                   READY   STATUS    RESTARTS   AGE
+prometheus-operator-5f9c78bb5d-w95vs   2/2     Running   0          18s
+prometheus-user-workload-0             5/6     Running   0          15s
+thanos-ruler-user-workload-0           4/4     Running   0          15s
+```
+
+?> ✅ You should see **prometheus-user-workload** and **thanos-ruler** pods running.
+
 ### Deploy the Kuadrant
 Apply this section if the Red Hat Connectivity Link (Kuadrant) has not ben set for llm-d yet.
 
-
 #### 1. Create namespace for Kuadrant
 
-```yaml
+```bash
 oc new-project kuadrant-system
 ```
 
 #### 2. Deploy the Kuadrant Custom Resource
 Create the root Kuadrant Custom Resource in the kuadrant-system namespace
-```yaml
+```bash
+cat << 'EOF' | oc apply -f-
 apiVersion: kuadrant.io/v1beta1
 kind: Kuadrant
 metadata:
@@ -260,6 +403,7 @@ metadata:
 spec:
   observability:
     enable: true
+EOF
 ```
 
 #### 3. Configure TLS for Authorino
@@ -347,12 +491,14 @@ openshift-default  openshift.io/gateway-controller               True       10d
 If it does not exist, create a GatewayClass as shown below (**Import YAML):**   
 
 ```bash
+cat << 'EOF' | oc apply -f-
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: openshift-default
+  name: maas-default-gateway
 spec:
   controllerName: "openshift.io/gateway-controller/v1"
+EOF
 ```
 
 ### Create the MaaS Gateway
@@ -369,7 +515,52 @@ You can retrieve the certificate-name by running:
 oc get ingresscontroller default -n openshift-ingress-operator -o jsonpath='{.spec.defaultCertificate.name}'
 ```
 
-```yaml
+Create 
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: services.platform.opendatahub.io/v1alpha1
+kind: GatewayConfig
+metadata:
+  generation: 2
+  name: maas-default-gateway
+spec:
+  authProxyTimeout: 5s
+  certificate:
+    secretName: data-science-gatewayconfig-tls
+    type: OpenshiftDefaultIngress
+  cookie:
+    expire: 24h0m0s
+    refresh: 1h0m0s
+  enableK8sTokenValidation: true
+  ingressMode: OcpRoute
+  verifyProviderCertificate: true
+EOF
+```
+
+Create a configmap for the new gateway configuration:
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: v1
+data:
+  service: |
+    metadata:
+      annotations:
+        service.beta.openshift.io/serving-cert-secret-name: "maas-default-gateway-service-tls"
+    spec:
+      type: ClusterIP
+kind: ConfigMap
+metadata:
+  labels:
+    platform.opendatahub.io/part-of: gatewayconfig
+  name: maas-default-gateway-config
+  namespace: openshift-ingress
+EOF
+```
+
+```bash
+cat << 'EOF' | oc apply -f-
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -380,20 +571,50 @@ metadata:
     security.opendatahub.io/authorino-tls-bootstrap: "true"
 spec:
   gatewayClassName: openshift-default
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: maas-default-gateway-config
   listeners:
-  - name: http
-    protocol: HTTP
-    port: 80
-    hostname: "*.<CLUSTER_DOMAIN>"
   - name: https
-    protocol: HTTPS
+    hostname: maas.apps.cluster-qnsf7.dyn.redhatworkshops.io
     port: 443
-    hostname: "*.<CLUSTER_DOMAIN>"
+    protocol: HTTPS
+    allowedRoutes:
+      namespaces:
+        from: All
     tls:
       mode: Terminate
       certificateRefs:
-      - kind: Secret
-        name: <CERT_NAME>
+      - group: ""
+        kind: Secret
+        name: maas-default-gateway-service-tls
+EOF
+```
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: maas-default-gateway
+  namespace: openshift-ingress
+  annotations:
+    router.openshift.io/service-ca-certificate: "true"
+spec:
+  host: maas.apps.cluster-qnsf7.dyn.redhatworkshops.io
+  port:
+    targetPort: 443
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: maas-default-gateway-openshift-default
+    weight: 100
+  wildcardPolicy: None
+EOF
 ```
 
 ?> 📎 **Annotations explained:**
@@ -405,13 +626,19 @@ spec:
 
 ```bash
 oc get gateway maas-default-gateway -n openshift-ingress
+oc get svc maas-default-gateway-openshift-default -n openshift-ingress
+oc get route maas-default-gateway -n openshift-ingress
 ```
 
 Expected output:
 
 ```text
-NAME                   CLASS              ADDRESS   PROGRAMMED   AGE
-maas-default-gateway   openshift-default            True         1m
+NAME                   CLASS               ADDRESS                                                                      PROGRAMMED   AGE
+maas-default-gateway   openshift-default   maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local   True         44m
+NAME                                     TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)             AGE
+maas-default-gateway-openshift-default   ClusterIP   172.231.114.126   <none>        15021/TCP,443/TCP   44m
+NAME                   HOST/PORT                                        PATH   SERVICES                                 PORT   TERMINATION          WILDCARD
+maas-default-gateway   maas.apps.cluster-qnsf7.dyn.redhatworkshops.io          maas-default-gateway-openshift-default   443    reencrypt/Redirect   None
 ```
 
 ## Enable MaaS in DataScienceCluster
@@ -435,8 +662,6 @@ spec:
 ```
 
 ?> 📎 **Important:** The MaaS controller will automatically discover the `maas-db-config` secret in the infrastructure namespace (`redhat-ai-gateway-infra`). You don't need to reference it in the DataScienceCluster configuration.
-
-!> 🔧 **Important:** If you are upgrading from OpenShift AI 3.3 or 3.4 where MaaS was enabled under `spec.components.kserve.modelsAsService`, you must migrate to the new location under `spec.components.aigateway.modelsAsAService`.
 
 5. Click **Save**.
 6. Wait for the DataScienceCluster to reconcile. Monitor the status:
@@ -471,7 +696,7 @@ models-as-a-service    Active   2m
 1. Verify that the MaaS API deployment is running:
 
 ```bash
-oc get deployment maas-api -n models-as-a-service
+oc get deployment maas-api -n redhat-ai-gateway-infra
 ```
 
 Expected output:
@@ -484,7 +709,7 @@ maas-api   1/1     1            1           3m
 2. Check the MaaS API pod logs to verify successful database connection:
 
 ```bash
-oc logs -n models-as-a-service -l app=maas-api --tail=50
+oc logs -n redhat-ai-gateway-infra -l app.kubernetes.io/name=maas-api --tail=50
 ```
 
 ?> ✅ Look for log entries indicating successful database connection and API server startup, such as "Connected to PostgreSQL database" or "Starting HTTP server on port 8080".
@@ -494,7 +719,7 @@ oc logs -n models-as-a-service -l app=maas-api --tail=50
 1. Verify that the MaaS controller is running:
 
 ```bash
-oc get pods -n redhat-ods-applications -l control-plane=controller-manager,app.kubernetes.io/name=maas-controller
+oc get pods -n redhat-ods-applications -l app=maas-controller
 ```
 
 Expected output:
@@ -504,48 +729,21 @@ NAME                              READY   STATUS    RESTARTS   AGE
 maas-controller-7b8f5c9d8-xk4pl   1/1     Running   0          4m
 ```
 
-### Verify Dashboard Configuration
-
-1. Verify that the MaaS dashboard configuration was created:
-
-```bash
-oc get odhdashboardconfig default-odh-dashboard-config -n redhat-ods-applications -o jsonpath='{.spec.dashboardConfig.modelsAsAService}' | jq '.'
-```
-
-Expected output should show MaaS configuration including the gateway reference:
-
-```json
-{
-  "enabled": true,
-  "gateway": {
-    "name": "maas-default-gateway",
-    "namespace": "openshift-ingress"
-  }
-}
-```
-
 ### Verify Default Tenant Configuration
 
 1. Verify that the default tenant configuration was created:
 
 ```bash
-oc get tenants.maas.opendatahub.io default-tenant -n models-as-a-service
+oc get aitenant models-as-a-service -n ai-tenants
 ```
 
 Expected output:
 
 ```text
-NAME             AGE
-default-tenant   5m
-```
-
-2. View the tenant configuration:
-
-```bash
-oc get tenants.maas.opendatahub.io default-tenant -n models-as-a-service -o yaml
+NAME                  READY   TENANT NAMESPACE      GATEWAY                AGE
+models-as-a-service   True    models-as-a-service   maas-default-gateway   71m
 ```
 
 ?> 📎 The tenant configuration includes gateway references, API key expiration settings, and telemetry options.
-
 
 **Congratulations!** You have successfully configured Models-as-a-Service infrastructure. In the next section, you will deploy models with MaaS governance.
