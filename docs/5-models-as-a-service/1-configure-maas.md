@@ -744,6 +744,52 @@ NAME                  READY   TENANT NAMESPACE      GATEWAY                AGE
 models-as-a-service   True    models-as-a-service   maas-default-gateway   71m
 ```
 
-?> 📎 The tenant configuration includes gateway references, API key expiration settings, and telemetry options.
-
 **Congratulations!** You have successfully configured Models-as-a-Service infrastructure. In the next section, you will deploy models with MaaS governance.
+
+## Objects created by this procedure
+
+The lab creates the objects in the first table. Operators and controllers then create the objects in the second table. The MaaS hostname `maas.apps.<cluster-domain>` is the `Route` and the `Gateway` listener. The existing `GatewayConfig` `default-gateway` continues to publish the OpenShift AI data-science host.
+
+### Objects you apply
+
+| Kind | Name | Namespace | Purpose |
+| --- | --- | --- | --- |
+| Subscription | `rhcl-operator` | `openshift-operators` | Installs Red Hat Connectivity Link 1.4.x |
+| Namespace | `openshift-lws-operator` | — | Operator namespace for Leader Worker Set |
+| OperatorGroup | `leader-worker-set` | `openshift-lws-operator` | Scopes the Leader Worker Set Operator |
+| Subscription | `leader-worker-set` | `openshift-lws-operator` | Installs Leader Worker Set Operator 1.0 |
+| LeaderWorkerSetOperator | `cluster` | `openshift-lws-operator` | Starts the LeaderWorkerSet controller |
+| Namespace | `maas-postgres` | — | PostgreSQL project |
+| Namespace | `redhat-ai-gateway-infra` | — | Namespace where the MaaS API runs |
+| Secret | `postgres-creds` | `maas-postgres` | Database user, password, and database name |
+| Secret | `maas-db-config` | `redhat-ai-gateway-infra` | Connection URL discovered by the MaaS controller |
+| PersistentVolumeClaim | `postgres-data` | `maas-postgres` | PostgreSQL data volume |
+| Deployment | `postgres` | `maas-postgres` | PostgreSQL 16 database |
+| Service | `postgres` | `maas-postgres` | In-cluster database endpoint on port 5432 |
+| ConfigMap | `cluster-monitoring-config` | `openshift-monitoring` | Enables User Workload Monitoring |
+| Namespace | `kuadrant-system` | — | Connectivity Link instance namespace |
+| Kuadrant | `kuadrant` | `kuadrant-system` | Enables Authorino, Limitador, and observability |
+| ConfigMap | `maas-default-gateway-config` | `openshift-ingress` | Forces the gateway Service to `ClusterIP` and requests its serving certificate |
+| Gateway | `maas-default-gateway` | `openshift-ingress` | MaaS HTTPS listener |
+| Route | `maas-default-gateway` | `openshift-ingress` | Publishes the MaaS hostname through the default router |
+| DataScienceCluster | `default-dsc` | — | Sets `aigateway.modelsAsAService` to `Managed` |
+
+Create `kuadrant-system` and the `Kuadrant` resource only when Connectivity Link is not already configured for llm-d. Create a `GatewayClass` only when `openshift-default` is missing.
+
+### Objects created by the controllers
+
+| Kind | Name | Namespace | Created by |
+| --- | --- | --- | --- |
+| Deployments | `kuadrant-operator-controller-manager`, Authorino, Limitador, and DNS operators | `openshift-operators` | Connectivity Link Operator |
+| Deployments | `authorino`, `limitador` | `kuadrant-system` | `Kuadrant` resource |
+| Secret | `authorino-server-cert` | `kuadrant-system` | service-ca, after the Authorino Service annotation |
+| Deployments | `openshift-lws-operator`, `lws-controller-manager` | `openshift-lws-operator` | Leader Worker Set Operator |
+| Pods | `prometheus-user-workload`, `thanos-ruler` | `openshift-user-workload-monitoring` | Cluster monitoring |
+| Service | `maas-default-gateway-openshift-default` | `openshift-ingress` | Gateway controller, from the `Gateway` and ConfigMap |
+| Secret | `maas-default-gateway-service-tls` | `openshift-ingress` | service-ca, from the serving-cert annotation in the ConfigMap |
+| Config | `default` | cluster-scoped | MaaS controller |
+| Namespace | `ai-tenants` | — | MaaS controller |
+| AITenant | `models-as-a-service` | `ai-tenants` | MaaS controller; references `maas-default-gateway` |
+| Namespace | `models-as-a-service` | — | MaaS controller; tenant namespace |
+| Deployment and Service | `maas-api` | `redhat-ai-gateway-infra` | MaaS controller |
+| Deployment | `maas-controller` | `redhat-ods-applications` | OpenShift AI operator |
