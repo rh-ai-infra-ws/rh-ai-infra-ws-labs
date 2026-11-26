@@ -1,32 +1,32 @@
 # 🚀 Deploy Models with Models-as-a-Service
 
-This lab guides you through deploying generative AI models through the OpenShift AI and publishing them to Models-as-a-Service (MaaS) so that administrators can enforce subscription-based quota and token limits.
+This lab deploys a generative model on OpenShift AI and publishes it to Models-as-a-Service (MaaS). A subscription and an authorization policy then give a user group a token limit for that model.
 
-## Understanding MaaS Model Publishing
+## What this procedure creates
 
-When you deploy a model and publish it to MaaS, the deployment wizard creates:
+The model is an `LLMInferenceService`. MaaS does not discover it until you also create:
 
-- **LLMInferenceService**: The actual inference server that handles model serving
-- **MaaSModelRef**: A custom resource that registers the model with MaaS for subscription assignment
+- **MaaSModelRef**: registers the inference service with MaaS
+- **MaaSSubscription**: gives a group a token limit for that model
+- **MaaSAuthPolicy**: allows that group to call the model through the gateway
 
-After publishing, administrators must create a **subscription** and **authorization policy** to make the model accessible to user groups.
+This group is `system:authenticated:oauth`. Every user who logged in with `oc login` is a member, including the account you use for `oc whoami -t`. A service-account token is not a member of that group.
 
-> **Note:** Models published to MaaS use the LLMInferenceService architecture, which is designed for large language models and integrates with the MaaS gateway for subscription-based quota enforcement. The legacy deployment method uses traditional KServe InferenceService resources with serving runtimes.
+?> 📎 The gateway hostname is `maas.<cluster-domain>`, from the previous lab. Inference calls use the URL on the `LLMInferenceService`, which includes the project and model name. A request to `https://maas.<cluster-domain>/v1/chat/completions` does not match a route.
 
-## Deploy a Model via Dashboard
+## Create the project
 
-In this section, you will deploy a generative AI model using the OpenShift AI dashboard wizard and publish it to MaaS.
+1. Create the project that will host the model:
 
-### Using the Dashboard Wizard
+```bash
+oc new-project project01-model-deploy
+```
 
-1. Log in to the OpenShift AI dashboard.
-2. In the left navigation menu, click **Projects**.
-3. Click **Create Project** and type the name `project01-model-deploy`.
+If the project already exists, the command reports that. Continue with the next step.
 
-### Deploy the model using LLM-D
+## Deploy the model
 
-1. Create the LLMInferenceService using the vLLM optimized for CPU and referencing the model `qwen2.5-0.5b-instruct`.
-
+1. Create an `LLMInferenceService` for `qwen2.5-0.5b-instruct`. It uses the CPU vLLM image and attaches to `maas-default-gateway`:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -57,15 +57,14 @@ spec:
       - name: main
         image: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:0ec0f5ff9a5ff263f58db0cfb19e3d7eef24b94c2d8629fe5145f5a8747e28c9
         args:
-          - "--dtype=bfloat16"       # half the weight footprint vs float32
-          - "--max-model-len=8192"   # cap context (default would be 32768)
-          - "--max-num-seqs=8"       # cap concurrent sequences (default 256); also makes requests
-                                     # queue sooner so the KEDA num_requests_waiting trigger fires
-          - "--enable-force-include-usage"  # always emit token-usage in responses (MaaS telemetry)
-          - "--enforce-eager"        # skip graph capture / extra buffers
+          - "--dtype=bfloat16"
+          - "--max-model-len=8192"
+          - "--max-num-seqs=8"
+          - "--enable-force-include-usage"
+          - "--enforce-eager"
         env:
           - name: VLLM_CPU_KVCACHE_SPACE
-            value: "2"               # GiB reserved for the CPU KV cache
+            value: "2"
           - name: OMP_NUM_THREADS
             value: "4"
           - name: VLLM_CPU_OMP_THREADS_BIND
@@ -80,13 +79,13 @@ spec:
 EOF
 ```
 
-## Verify Model Deployment
+?> 📎 The container arguments keep the CPU footprint small: `bfloat16` weights, a context limit of 8192, at most 8 concurrent sequences, and no CUDA graph capture. `VLLM_CPU_KVCACHE_SPACE` reserves 2 GiB for the KV cache.
 
-After deploying your model, verify that all components are properly configured.
+## Verify the model
 
-### Verify LLMInferenceService
+The first start downloads the model image. Wait until `READY` is `True` before you create the MaaS objects or call the API.
 
-1. Check the status of your LLMInferenceService:
+1. Check the inference service:
 
 ```bash
 oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy
@@ -95,13 +94,11 @@ oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy
 Expected output:
 
 ```text
-NAME              URL                                                                                             READY   REASON   AGE
-qwen25-05b-llmd   https://maas.apps.cluster-qnsf7.dyn.redhatworkshops.io/project01-model-deploy/qwen25-05b-llmd   True             4m45s
+NAME              URL                                                                                  READY   REASON   AGE
+qwen25-05b-llmd   https://maas.apps.<cluster-domain>/project01-model-deploy/qwen25-05b-llmd           True             5m
 ```
 
-?> ✅ The **READY** column should show **True**.
-
-2. Verify that the inference pods are running:
+2. Check the pods:
 
 ```bash
 oc get pods -n project01-model-deploy -l app.kubernetes.io/name=qwen25-05b-llmd
@@ -111,13 +108,15 @@ Expected output:
 
 ```text
 NAME                                                       READY   STATUS    RESTARTS   AGE
-qwen25-05b-llmd-kserve-5446bcdcb7-q9tdt                    2/2     Running   0          11m
-qwen25-05b-llmd-kserve-router-scheduler-5b4c54fbf4-lx6m6   1/1     Running   0          11m
+qwen25-05b-llmd-kserve-<id>                                2/2     Running   0          5m
+qwen25-05b-llmd-kserve-router-scheduler-<id>               1/1     Running   0          5m
 ```
 
-## Create the respective MaaS Objects
+?> ✅ Both pods must be `Running` and fully ready. The model pod has two containers.
 
-1. Create the MaaSModelRef
+## Create the MaaS objects
+
+1. Register the inference service:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -133,7 +132,7 @@ spec:
 EOF
 ```
 
-2. Create the MaaSSubscription
+2. Create a subscription for `system:authenticated:oauth`. The limit is 5,000,000 tokens per minute:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -158,7 +157,7 @@ spec:
 EOF
 ```
 
-3. Create the MaaSAuthPolicy
+3. Allow that same group to call the model:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -177,9 +176,9 @@ spec:
 EOF
 ```
 
-## Verify MaaS Objects
+## Verify the MaaS objects
 
-1. Verify that the MaaSModelRef was created:
+1. Wait until the model reference is `Ready`:
 
 ```bash
 oc get maasmodelref qwen25-05b-llmd -n project01-model-deploy
@@ -188,11 +187,13 @@ oc get maasmodelref qwen25-05b-llmd -n project01-model-deploy
 Expected output:
 
 ```text
-NAME              PHASE     ENDPOINT   HTTPROUTE                      GATEWAY                AGE
-qwen25-05b-llmd   Pending              qwen25-05b-llmd-kserve-route   maas-default-gateway   7s
+NAME              PHASE   ENDPOINT                                         HTTPROUTE                      GATEWAY                AGE
+qwen25-05b-llmd   Ready   https://maas.apps.<cluster-domain>/              qwen25-05b-llmd-kserve-route   maas-default-gateway   1m
 ```
 
-2. Verify that the MaaSAuthPolicy was created:
+`Pending` means the HTTP route is not attached yet. Run the command again. Do not call the model while the phase is `Pending`.
+
+2. Confirm the subscription is `Active`:
 
 ```bash
 oc get maassubscription qwen25-05b-llmd-demo -n models-as-a-service
@@ -202,37 +203,33 @@ Expected output:
 
 ```text
 NAME                   PHASE    PRIORITY   AGE
-qwen25-05b-llmd-demo   Active   0          7m25s
+qwen25-05b-llmd-demo   Active   0          1m
 ```
 
-3. Verify that the MaaSAuthPolicy was created:
+3. Confirm the authorization policy is `Active`:
 
 ```bash
-oc get maasauthPolicy qwen25-05b-llmd-auth -n models-as-a-service
+oc get maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service
 ```
 
 Expected output:
 
 ```text
 NAME                   PHASE    AGE
-qwen25-05b-llmd-auth   Active   8m25s
+qwen25-05b-llmd-auth   Active   1m
 ```
 
-?> 📎 Look for the `status.conditions` sections to verify the model is properly registered with MaaS.
+## Call the model with an OpenShift token
 
-### Test Model Endpoint (Openshift User Token based)
+`oc whoami -t` returns your user token. The gateway sends any bearer token that does not start with `sk-oai-` through Kubernetes TokenReview. Your user is in `system:authenticated:oauth`, so the subscription and the authorization policy both allow the call.
 
-Following this setup, we should proceed to validate the model endpoint leveraging MaaS alongside OpenShift user tokens for authentication and authorization.
+1. Send a chat request to the inference service URL:
 
 ```bash
-# Get the model URL
 MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
-
-# Get your token
 TOKEN=$(oc whoami -t)
 
-# Test the model endpoint
-curl -k -X POST "${MODEL_URL}/v1/chat/completions" \
+curl -ksS -X POST "${MODEL_URL}/v1/chat/completions" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -246,7 +243,7 @@ curl -k -X POST "${MODEL_URL}/v1/chat/completions" \
   }' | jq .
 ```
 
-Expected output:
+?> ✅ The response is a JSON chat completion. `choices[0].message.content` contains the answer, and `usage` reports the token counts. The wording of the answer changes between calls:
 
 ```yaml
 {
@@ -287,33 +284,32 @@ Expected output:
 }
 ```
 
-?> ✅ A successful response returns JSON with the model's completion.
+## Call the model with an API Key
 
-!> ⚠️ **Note:** Once subscriptions and authorization policies are configured, users will access models through the MaaS gateway with enforced token limits.
+Create the key with your OpenShift token. The key is bound to `qwen25-05b-llmd-demo`. Use the key on the inference URL from the previous section. Do not send it to `${HOST}/v1/chat/completions` or to `${HOST}/maas-api/v1/models`: the first path has no route, and the models API requires identity headers that this gateway does not set for an API key.
 
-
-### Test Model Endpoint (API Key based)
-
-Now, we should also validate the model endpoint leveraging MaaS alongside API Key for authentication and authorization.
-
-1. Generate the respective API Key:
+1. Create a key that expires in one hour:
 
 ```bash
-# Get the model URL
-MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
+CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+HOST="https://maas.${CLUSTER_DOMAIN}"
 
-# Get a new API Key
-API_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
+API_KEY=$(curl -ksS -X POST "${HOST}/maas-api/v1/api-keys" \
   -H "Authorization: Bearer $(oc whoami -t)" \
   -H "Content-Type: application/json" \
-  -d '{"name":"workshop-key","expiresIn":"1h","subscription":"qwen25-05b-llmd-demo"}' | jq -r .key)
+  -d '{"name":"workshop-key","expiresIn":"1h","subscription":"qwen25-05b-llmd-demo"}' | jq -er .key)
+
+echo "${API_KEY}" | grep -q '^sk-oai-' && echo "API key created"
 ```
 
-2. Test the model endpoint using the created API Key:
+?> ✅ The command prints `API key created`. The plaintext key is shown only by this response. Store it if you need it again. A value of `null` means the create request failed. Print the curl response without `jq -er .key` and correct the error before continuing.
+
+2. Call the model with that key:
 
 ```bash
-# Test the model endpoint
-curl -k -X POST "${MODEL_URL}/v1/chat/completions" \
+MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
+
+curl -ksS -X POST "${MODEL_URL}/v1/chat/completions" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
@@ -327,43 +323,4 @@ curl -k -X POST "${MODEL_URL}/v1/chat/completions" \
   }' | jq .
 ```
 
-Expected output:
-
-```yaml
-{
-  "id": "chatcmpl-48fb6385-dcf0-4a83-91d3-ac676694cfdb",
-  "object": "chat.completion",
-  "created": 1795692188,
-  "model": "qwen25-05b-llmd",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "OpenShift is an open-source container orchestration platform developed by Red Hat. It provides a simple and intuitive way to manage and deploy applications across multiple Kubernetes clusters. OpenShift supports various programming languages, including Java, Python, Go, and Ruby, making it easy for developers to build and deploy applications quickly and easily.\nSome key features of OpenShift include:\n\n  * Containerized applications: Applications can be built and deployed using Docker images, which are packaged as containers that run on Kubernetes clusters.\n  *",
-        "refusal": null,
-        "annotations": null,
-        "audio": null,
-        "function_call": null,
-        "tool_calls": [],
-        "reasoning": null
-      },
-      "logprobs": null,
-      "finish_reason": "length",
-      "stop_reason": null,
-      "token_ids": null
-    }
-  ],
-  "service_tier": null,
-  "system_fingerprint": null,
-  "usage": {
-    "prompt_tokens": 24,
-    "total_tokens": 124,
-    "completion_tokens": 100,
-    "prompt_tokens_details": null
-  },
-  "prompt_logprobs": null,
-  "prompt_token_ids": null,
-  "kv_transfer_params": null
-}
-```
+?> ✅ A successful response has the same shape as the OpenShift-token call: `object` is `chat.completion`, and `choices[0].message.role` is `assistant`.
