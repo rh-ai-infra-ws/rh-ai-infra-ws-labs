@@ -12,7 +12,7 @@ Models-as-a-Service (MaaS) in Red Hat OpenShift AI uses Red Hat Connectivity Lin
 
 ?> 📎 `openshift-operators` already has a global OperatorGroup. Do not create another OperatorGroup in that namespace.
 
-1. Create the Subscription. Channel `stable-1.4` selects Connectivity Link 1.4.x:
+1. Create the Subscription. The `stable` channel installs Connectivity Link. The next step checks that the installed version is 1.4.x:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -138,21 +138,17 @@ Models-as-a-Service (MaaS) in Red Hat OpenShift AI requires a PostgreSQL databas
 
 For lab purposes, set up a temporary PostgreSQL database as outlined in the subsection below to complete the lab.
 
----
-
-#### 1. Create namespace for PostgreSQL
+1. Create the PostgreSQL namespace and the namespace where the MaaS API will run:
 
 ```bash
-# namespace/project creation for postgresql
+# Project for the PostgreSQL database
 oc new-project maas-postgres
 
-# namespace for ai-gatewey (later on will be used by maas api)
+# Project where the MaaS API runs
 oc new-project redhat-ai-gateway-infra
 ```
 
----
-
-#### 2. Create Secrets
+2. Create the database credential secret and the connection secret that the MaaS controller reads:
 
 ```bash
 # Database credentials
@@ -168,9 +164,7 @@ oc create secret generic maas-db-config \
   --from-literal=DB_CONNECTION_URL="postgresql://maas:maas123@postgres.maas-postgres.svc:5432/maas?sslmode=disable"
 ```
 
----
-
-#### 3. Create Storage
+3. Create the data volume:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -190,9 +184,7 @@ spec:
 EOF
 ```
 
----
-
-#### 4. Deploy PostgreSQL
+4. Deploy PostgreSQL 16:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -270,9 +262,7 @@ spec:
 EOF
 ```
 
----
-
-#### 5. Create Service
+5. Expose PostgreSQL inside the cluster:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -292,9 +282,7 @@ spec:
 EOF
 ```
 
----
-
-#### 6. Verify Deployment
+6. Confirm that PostgreSQL is accepting connections:
 
 ```bash
 # Check all components
@@ -305,9 +293,9 @@ oc exec -n maas-postgres deployment/postgres -- \
   psql -U maas -d maas -c "SELECT version();"
 ```
 
----
+?> ✅ The query prints a PostgreSQL 16 version string.
 
-## Verify  Prerequisites
+## Verify prerequisites
 
 Before configuring MaaS, verify that the following key CRDs have been registered:
 
@@ -330,11 +318,19 @@ oc get crd leaderworkersetoperators.operator.openshift.io
 - **cert-manager Operator for Red Hat OpenShift**
 - **Red Hat OpenShift AI**
 
-### Enabling User Workload Monitoring
+### Enable User Workload Monitoring
 
-User Workload Monitoring is mandatory for MaaS to collect and expose token rate-limiting metrics. If User Workload Monitoring is disabled, the MaaS deployment will show a `Degraded` status.
+MaaS stays `Degraded` until user workload monitoring is enabled. That is how token rate-limit metrics are collected.
 
-To verify and enable User Workload Monitoring, edit the cluster monitoring configuration map in the `openshift-monitoring` namespace:
+1. Check whether the monitoring ConfigMap already exists:
+
+```bash
+oc get configmap cluster-monitoring-config -n openshift-monitoring
+```
+
+If it exists, edit `data.config.yaml` and set `enableUserWorkload: true`. Do not replace the ConfigMap, because it may already contain other monitoring settings.
+
+If it does not exist, create it:
 
 ```bash
 cat << 'EOF' | oc apply -f-
@@ -349,11 +345,7 @@ data:
 EOF
 ```
 
-#### Verify User Workload Monitoring
-
-MaaS requires User Workload Monitoring to collect and expose usage metrics.
-
-1. Verify that User Workload Monitoring is enabled:
+2. Confirm the setting:
 
 ```bash
 oc get configmap cluster-monitoring-config -n openshift-monitoring -o yaml | grep enableUserWorkload
@@ -365,7 +357,7 @@ Expected output:
   enableUserWorkload: true
 ```
 
-2. Verify that user workload monitoring pods are running:
+3. Confirm that the user workload monitoring pods are running. Every pod should report all of its containers ready:
 
 ```bash
 oc get pods -n openshift-user-workload-monitoring
@@ -376,23 +368,24 @@ Expected output:
 ```text
 NAME                                   READY   STATUS    RESTARTS   AGE
 prometheus-operator-5f9c78bb5d-w95vs   2/2     Running   0          18s
-prometheus-user-workload-0             5/6     Running   0          15s
+prometheus-user-workload-0             6/6     Running   0          15s
 thanos-ruler-user-workload-0           4/4     Running   0          15s
 ```
 
 ?> ✅ You should see **prometheus-user-workload** and **thanos-ruler** pods running.
 
-### Deploy the Kuadrant
-Apply this section if the Red Hat Connectivity Link (Kuadrant) has not ben set for llm-d yet.
+### Deploy Kuadrant
 
-#### 1. Create namespace for Kuadrant
+Apply this section only when Red Hat Connectivity Link is not already configured for llm-d.
+
+1. Create the Kuadrant namespace:
 
 ```bash
 oc new-project kuadrant-system
 ```
 
-#### 2. Deploy the Kuadrant Custom Resource
-Create the root Kuadrant Custom Resource in the kuadrant-system namespace
+2. Create the `Kuadrant` resource in that namespace:
+
 ```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: kuadrant.io/v1beta1
@@ -406,10 +399,9 @@ spec:
 EOF
 ```
 
-#### 3. Configure TLS for Authorino
-To enable secure authentication and authorization for model endpoints, configure TLS communication between Authorino and the MaaS API service.
+3. Configure TLS for Authorino so the gateway can authenticate to it.
 
-1. Annotate the Authorino service to generate an OpenShift serving certificate secret
+   a. Annotate the Authorino service. The service CA generates a certificate and stores it in `authorino-server-cert`:
 
 ```bash
 oc annotate svc/authorino-authorino-authorization \
@@ -417,20 +409,22 @@ oc annotate svc/authorino-authorino-authorization \
   -n kuadrant-system
 ```
 
-?> 📎 The service-ca-operator in OpenShift generates a TLS certificate signed by the cluster service CA and stores it in the authorino-server-cert secret.
+?> 📎 The service CA operator signs this certificate with the cluster service CA.
 
-Verify that the certificate secret was created:
+   Confirm that the secret exists:
+
 ```bash
 oc get secret authorino-server-cert -n kuadrant-system
 ```
-Expected output:
+
+   Expected output:
 
 ```text
 NAME                     TYPE                DATA   AGE
 authorino-server-cert    kubernetes.io/tls   2      30s
 ```
 
-2. Enable TLS on Authorino's listener:
+   b. Enable TLS on the Authorino listener:
 
 ```bash
 oc patch authorino authorino -n kuadrant-system --type=merge --patch '{
@@ -447,13 +441,13 @@ oc patch authorino authorino -n kuadrant-system --type=merge --patch '{
 }'
 ```
 
-Verify that TLS is enabled in the Authorino CR:
+   Confirm that the listener reports TLS as enabled. The command prints `true`:
 
 ```bash
-oc get authorino authorino -n kuadrant-system -o jsonpath='{.spec.listener.tls.enabled}'
+oc get authorino authorino -n kuadrant-system -o jsonpath='{.spec.listener.tls.enabled}{"\n"}'
 ```
 
-3. Configure the Authorino deployment with environment variables for TLS certificate validation:
+   c. Point the Authorino deployment at the cluster service CA bundle:
 
 ```bash
 oc -n kuadrant-system set env deployment/authorino \
@@ -461,9 +455,9 @@ oc -n kuadrant-system set env deployment/authorino \
   REQUESTS_CA_BUNDLE=/etc/ssl/certs/openshift-service-ca/service-ca-bundle.crt
 ```
 
-?> 📎 The cluster CA bundle is automatically populated by the service-ca-operator in OpenShift.
+?> 📎 OpenShift mounts the service CA bundle at that path. You do not create the file yourself.
 
-Wait for the Authorino deployment to roll out:
+   Wait until the deployment finishes rolling out:
 
 ```bash
 oc rollout status deployment/authorino -n kuadrant-system
@@ -488,61 +482,41 @@ NAME               CONTROLLER                                    ACCEPTED   AGE
 openshift-default  openshift.io/gateway-controller               True       10d
 ```
 
-If it does not exist, create a GatewayClass as shown below (**Import YAML):**   
+If the command reports `NotFound`, create the class named `openshift-default`:
 
 ```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: maas-default-gateway
+  name: openshift-default
 spec:
-  controllerName: "openshift.io/gateway-controller/v1"
+  controllerName: openshift.io/gateway-controller/v1
 EOF
 ```
 
 ### Create the MaaS Gateway
 
-1. Create the `maas-default-gateway` in the `openshift-ingress` namespace using the YAML below (Import YAML). Before applying it, replace  with your cluster's application domain and certificate-name
+Leave the existing `GatewayConfig` named `default-gateway` unchanged. It publishes the OpenShift AI data-science host. The MaaS hostname is a separate `Gateway` and `Route`.
 
-You can retrieve the cluster domain by running:
-```bash
-oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}'
-```
-
-You can retrieve the certificate-name by running:
-```bash
-oc get ingresscontroller default -n openshift-ingress-operator -o jsonpath='{.spec.defaultCertificate.name}'
-```
-
-Create 
+1. Store the cluster application domain:
 
 ```bash
-cat << 'EOF' | oc apply -f-
-apiVersion: services.platform.opendatahub.io/v1alpha1
-kind: GatewayConfig
-metadata:
-  generation: 2
-  name: maas-default-gateway
-spec:
-  authProxyTimeout: 5s
-  certificate:
-    secretName: data-science-gatewayconfig-tls
-    type: OpenshiftDefaultIngress
-  cookie:
-    expire: 24h0m0s
-    refresh: 1h0m0s
-  enableK8sTokenValidation: true
-  ingressMode: OcpRoute
-  verifyProviderCertificate: true
-EOF
+CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+echo "maas.${CLUSTER_DOMAIN}"
 ```
 
-Create a configmap for the new gateway configuration:
+2. Create the gateway parameters ConfigMap. The annotation asks the service CA for a certificate named `maas-default-gateway-service-tls`, and the Service stays `ClusterIP` because the OpenShift router publishes it:
 
 ```bash
 cat << 'EOF' | oc apply -f-
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maas-default-gateway-config
+  namespace: openshift-ingress
+  labels:
+    platform.opendatahub.io/part-of: gatewayconfig
 data:
   service: |
     metadata:
@@ -550,17 +524,14 @@ data:
         service.beta.openshift.io/serving-cert-secret-name: "maas-default-gateway-service-tls"
     spec:
       type: ClusterIP
-kind: ConfigMap
-metadata:
-  labels:
-    platform.opendatahub.io/part-of: gatewayconfig
-  name: maas-default-gateway-config
-  namespace: openshift-ingress
 EOF
 ```
 
+3. Create the `Gateway` in `openshift-ingress`. The listener hostname is `maas.<cluster-domain>`:
+
 ```bash
-cat << 'EOF' | oc apply -f-
+CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+cat << EOF | oc apply -f-
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -578,7 +549,7 @@ spec:
       name: maas-default-gateway-config
   listeners:
   - name: https
-    hostname: maas.apps.cluster-qnsf7.dyn.redhatworkshops.io
+    hostname: maas.${CLUSTER_DOMAIN}
     port: 443
     protocol: HTTPS
     allowedRoutes:
@@ -593,17 +564,30 @@ spec:
 EOF
 ```
 
+?> 📎 **Annotations:**
+
+- `opendatahub.io/managed: "false"` keeps the OpenShift AI model controller from replacing MaaS authorization policies.
+- `security.opendatahub.io/authorino-tls-bootstrap: "true"` turns on TLS between the gateway and Authorino.
+
+4. Wait until the gateway controller creates the Service and the serving certificate:
+
 ```bash
-cat << 'EOF' | oc apply -f-
+oc wait --for=condition=Programmed gateway/maas-default-gateway -n openshift-ingress --timeout=180s
+oc get secret maas-default-gateway-service-tls -n openshift-ingress
+```
+
+5. Create the `Route` only after that Service exists. Use `passthrough` so the client's TLS server name reaches the gateway. The gateway listener matches `maas.<cluster-domain>`. A `reencrypt` route opens a new TLS session from the router, the gateway finds no filter chain for that handshake, and clients receive `Application is not available`.
+
+```bash
+CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+cat << EOF | oc apply -f-
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: maas-default-gateway
   namespace: openshift-ingress
-  annotations:
-    router.openshift.io/service-ca-certificate: "true"
 spec:
-  host: maas.apps.cluster-qnsf7.dyn.redhatworkshops.io
+  host: maas.${CLUSTER_DOMAIN}
   port:
     targetPort: 443
   tls:
@@ -617,12 +601,7 @@ spec:
 EOF
 ```
 
-?> 📎 **Annotations explained:**
-
-- `opendatahub.io/managed: "false"` - Prevents the ODH Model Controller from overriding MaaS-managed authorization policies
-- `security.opendatahub.io/authorino-tls-bootstrap: "true"` - Enables TLS communication between the Gateway and Authorino
-
-2. Verify that the Gateway was created:
+6. Verify the gateway, its Service, and the Route:
 
 ```bash
 oc get gateway maas-default-gateway -n openshift-ingress
@@ -638,7 +617,7 @@ maas-default-gateway   openshift-default   maas-default-gateway-openshift-defaul
 NAME                                     TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)             AGE
 maas-default-gateway-openshift-default   ClusterIP   172.231.114.126   <none>        15021/TCP,443/TCP   44m
 NAME                   HOST/PORT                                        PATH   SERVICES                                 PORT   TERMINATION          WILDCARD
-maas-default-gateway   maas.apps.cluster-qnsf7.dyn.redhatworkshops.io          maas-default-gateway-openshift-default   443    reencrypt/Redirect   None
+maas-default-gateway   maas.apps.<cluster-domain>                            maas-default-gateway-openshift-default   443    passthrough/Redirect None
 ```
 
 ## Enable MaaS in DataScienceCluster
@@ -733,7 +712,7 @@ maas-controller-7b8f5c9d8-xk4pl   1/1     Running   0          4m
 
 To access Models-as-a-Service (MaaS) features in the OpenShift AI dashboard, you must enable the required dashboard configuration flags in the OdhDashboardConfig custom resource.
 
-1. Enable components in the 
+1. Enable the MaaS and observability pages in the dashboard configuration:
 
 ```bash
 oc patch odhdashboardconfig odh-dashboard-config -n redhat-ods-applications --type=merge --patch '{
@@ -771,12 +750,12 @@ Expected output shows the ModelsAsAServiceReady condition with status: "True":
 2. Verify that the Models-as-a-Service (MaaS) custom resource definitions (CRDs) are installed:
 
 ```bash
-$ oc get crd | grep -E 'maas.opendatahub.io|aitenants'
+oc get crd | grep -E 'maas.opendatahub.io|aitenants'
 ```
 
 Expected output:
 
-```bash
+```text
 aitenants.maas.opendatahub.io                                                      2026-11-24T14:22:06Z
 configs.maas.opendatahub.io                                                        2026-11-24T14:22:06Z
 externalmodels.maas.opendatahub.io                                                 2026-11-24T14:22:06Z
@@ -829,7 +808,7 @@ The lab creates the objects in the first table. Operators and controllers then c
 | Kuadrant | `kuadrant` | `kuadrant-system` | Enables Authorino, Limitador, and observability |
 | ConfigMap | `maas-default-gateway-config` | `openshift-ingress` | Forces the gateway Service to `ClusterIP` and requests its serving certificate |
 | Gateway | `maas-default-gateway` | `openshift-ingress` | MaaS HTTPS listener |
-| Route | `maas-default-gateway` | `openshift-ingress` | Publishes the MaaS hostname through the default router |
+| Route | `maas-default-gateway` | `openshift-ingress` | Publishes `maas.<cluster-domain>` with TLS passthrough |
 | DataScienceCluster | `default-dsc` | — | Sets `aigateway.modelsAsAService` to `Managed` |
 
 Create `kuadrant-system` and the `Kuadrant` resource only when Connectivity Link is not already configured for llm-d. Create a `GatewayClass` only when `openshift-default` is missing.
