@@ -21,60 +21,64 @@ In this section, you will deploy a generative AI model using the OpenShift AI da
 
 1. Log in to the OpenShift AI dashboard.
 2. In the left navigation menu, click **Projects**.
-3. Click the name of your project where you want to deploy the model (or create a new project if needed).
-4. Click the **Deployments** tab.
-5. Click **Deploy model** to open the deployment wizard.
+3. Click **Create Project** and type the name `project01-model-deploy`.
 
-### Configure Model Details
+### Deploy the model using LLM-D
 
-1. In the **Model details** section, configure your model storage:
-   - **Storage connection**: Select an existing data connection or create a new one pointing to your model storage (S3, OCI, or other supported storage)
-   - **Model path**: Enter the path to your model within the storage (e.g., `models/llama-2-7b/`)
-   - **Model type**: Select **Generative AI model (Example, LLM)**
-2. Verify that the **Use legacy deployment method** checkbox is **unchecked**.
+1. Create the LLMInferenceService using the vLLM optimized for CPU and referencing the model `qwen2.5-0.5b-instruct`.
 
-?> 📎 The legacy deployment method uses KServe InferenceService. For MaaS integration, you must use the new LLMInferenceService architecture.
 
-3. Click **Next**.
-
-### Configure Model Deployment
-
-1. In the **Model deployment** section, configure the deployment settings:
-   - **Model deployment name**: Enter a unique name using lowercase letters, numbers, and hyphens (e.g., `llama-2-7b-chat`)
-2. Select the **deployment resource**:
-   - **Distributed inference with llm-d**: Recommended for production deployments and multi-GPU models
-3. Configure **Number of replicas**:
-   - For development: 1 replica
-4. Click **Next**.
-
-### Configure Advanced Settings and MaaS Publishing
-
-1. In the **Advanced settings** section, configure MaaS publishing:
-
-   a. Under **Model availability**, select **Publish as MaaS**.
-   ```
-   !> ⚠️ **Important:** Publishing as MaaS creates a MaaSModelRef object that registers the model with MaaS. After publishing, an administrator must create a subscription and authorization policy to make the model accessible to users.
-
-   b. **Optional**: Configure custom runtime settings if needed:
-      - Click **Add custom runtime arguments** to add model-specific arguments (e.g., `--max-model-len 4096`)
-      - Click **Add custom runtime environment variables** to add environment variables
-   ```
-2. Click **Next**.
-
-### Review and Deploy
-
-1. In the **Review** section, verify your configuration:
-   - Model storage and path
-   - Deployment name and hardware profile
-   - MaaS publishing enabled
-   - Number of replicas
-   - Custom runtime settings (if any)
-2. Click **Deploy model**.
-3. Wait for the deployment to complete. The Status column will show:
-   - **Creating**: Deployment is in progress
-   - **✓ Deployed**: Model is ready to use
-
-?> ⏳ Initial deployment can take 5-10 minutes depending on model size and cluster resources.
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: qwen25-05b-llmd
+  namespace: project01-model-deploy
+  labels:
+    app.kubernetes.io/part-of: llm-d
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+spec:
+  model:
+    uri: "oci://quay.io/redhat-ai-services/modelcar-catalog:qwen2.5-0.5b-instruct"
+    name: qwen25-05b-llmd
+  router:
+    scheduler: {}
+    route: {}
+    gateway:
+      refs:
+        - name: maas-default-gateway
+          namespace: openshift-ingress
+  template:
+    containers:
+      - name: main
+        image: registry.redhat.io/rhaii/vllm-cpu-rhel9@sha256:0ec0f5ff9a5ff263f58db0cfb19e3d7eef24b94c2d8629fe5145f5a8747e28c9
+        args:
+          - "--dtype=bfloat16"       # half the weight footprint vs float32
+          - "--max-model-len=8192"   # cap context (default would be 32768)
+          - "--max-num-seqs=8"       # cap concurrent sequences (default 256); also makes requests
+                                     # queue sooner so the KEDA num_requests_waiting trigger fires
+          - "--enable-force-include-usage"  # always emit token-usage in responses (MaaS telemetry)
+          - "--enforce-eager"        # skip graph capture / extra buffers
+        env:
+          - name: VLLM_CPU_KVCACHE_SPACE
+            value: "2"               # GiB reserved for the CPU KV cache
+          - name: OMP_NUM_THREADS
+            value: "4"
+          - name: VLLM_CPU_OMP_THREADS_BIND
+            value: "0-3"
+        resources:
+          requests:
+            cpu: "1"
+            memory: 2Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
+EOF
+```
 
 ## Verify Model Deployment
 
@@ -85,14 +89,14 @@ After deploying your model, verify that all components are properly configured.
 1. Check the status of your LLMInferenceService:
 
 ```bash
-oc get llminferenceservice llama-2-7b-chat -n your-project
+oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy
 ```
 
 Expected output:
 
 ```text
-NAME               READY   URL                                            AGE
-llama-2-7b-chat    True    https://llama-2-7b-chat-your-project.apps...   5m
+NAME              URL                                                                                             READY   REASON   AGE
+qwen25-05b-llmd   https://maas.apps.cluster-qnsf7.dyn.redhatworkshops.io/project01-model-deploy/qwen25-05b-llmd   True             4m45s
 ```
 
 ?> ✅ The **READY** column should show **True**.
@@ -100,46 +104,129 @@ llama-2-7b-chat    True    https://llama-2-7b-chat-your-project.apps...   5m
 2. Verify that the inference pods are running:
 
 ```bash
-oc get pods -n your-project -l inference.opendatahub.io/llm-inference-service=llama-2-7b-chat
+oc get pods -n project01-model-deploy -l app.kubernetes.io/name=qwen25-05b-llmd
 ```
 
 Expected output:
 
 ```text
-NAME                                READY   STATUS    RESTARTS   AGE
-llama-2-7b-chat-predictor-0         2/2     Running   0          5m
+NAME                                                       READY   STATUS    RESTARTS   AGE
+qwen25-05b-llmd-kserve-5446bcdcb7-q9tdt                    2/2     Running   0          11m
+qwen25-05b-llmd-kserve-router-scheduler-5b4c54fbf4-lx6m6   1/1     Running   0          11m
 ```
 
-### Verify MaaSModelRef
+## Create the respective MaaS Objects
+
+1. Create the MaaSModelRef
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: qwen25-05b-llmd
+  namespace: project01-model-deploy
+spec:
+  modelRef:
+    kind: LLMInferenceService
+    name: qwen25-05b-llmd
+EOF
+```
+
+2. Create the MaaSSubscription
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: qwen25-05b-llmd-demo
+  namespace: models-as-a-service
+spec:
+  owner:
+    groups:
+      - name: system:authenticated:oauth
+  tokenMetadata:
+    costCenter: na
+    organizationId: na
+  modelRefs:
+    - name: qwen25-05b-llmd
+      namespace: project01-model-deploy
+      tokenRateLimits:
+        - limit: 5000000
+          window: 1m
+EOF
+```
+
+3. Create the MaaSAuthPolicy
+
+```bash
+cat << 'EOF' | oc apply -f-
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: qwen25-05b-llmd-auth
+  namespace: models-as-a-service
+spec:
+  subjects:
+    groups:
+      - name: system:authenticated:oauth
+  modelRefs:
+    - name: qwen25-05b-llmd
+      namespace: project01-model-deploy
+EOF
+```
+
+## Verify MaaS Objects
 
 1. Verify that the MaaSModelRef was created:
 
 ```bash
-oc get maasmodelref llama-2-7b-chat -n your-project
+oc get maasmodelref qwen25-05b-llmd -n project01-model-deploy
 ```
 
 Expected output:
 
 ```text
-NAME               AGE
-llama-2-7b-chat    5m
+NAME              PHASE     ENDPOINT   HTTPROUTE                      GATEWAY                AGE
+qwen25-05b-llmd   Pending              qwen25-05b-llmd-kserve-route   maas-default-gateway   7s
 ```
 
-2. View the MaaSModelRef details:
+2. Verify that the MaaSAuthPolicy was created:
 
 ```bash
-oc get maasmodelref llama-2-7b-chat -n your-project -o yaml
+oc get maassubscription qwen25-05b-llmd-demo -n models-as-a-service
 ```
 
-?> 📎 Look for the `status.conditions` section to verify the model is properly registered with MaaS.
+Expected output:
 
-### Test Model Endpoint (Without MaaS Governance)
+```text
+NAME                   PHASE    PRIORITY   AGE
+qwen25-05b-llmd-demo   Active   0          7m25s
+```
 
-1. Before configuring subscriptions, you can test the model endpoint directly:
+3. Verify that the MaaSAuthPolicy was created:
+
+```bash
+oc get maasauthPolicy qwen25-05b-llmd-auth -n models-as-a-service
+```
+
+Expected output:
+
+```text
+NAME                   PHASE    AGE
+qwen25-05b-llmd-auth   Active   8m25s
+```
+
+?> 📎 Look for the `status.conditions` sections to verify the model is properly registered with MaaS.
+
+### Test Model Endpoint (Openshift User Token based)
+
+Following this setup, we should proceed to validate the model endpoint leveraging MaaS alongside OpenShift user tokens for authentication and authorization.
 
 ```bash
 # Get the model URL
-MODEL_URL=$(oc get llminferenceservice llama-2-7b-chat -n your-project -o jsonpath='{.status.url}')
+MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
 
 # Get your token
 TOKEN=$(oc whoami -t)
@@ -149,105 +236,134 @@ curl -k -X POST "${MODEL_URL}/v1/chat/completions" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "llama-2-7b-chat",
+    "model": "qwen25-05b-llmd",
     "messages": [
       {"role": "system", "content": "You are a helpful assistant."},
       {"role": "user", "content": "What is OpenShift?"}
     ],
     "max_tokens": 100,
     "temperature": 0.7
-  }'
-```
-
-?> ✅ A successful response returns JSON with the model's completion.
-
-!> ⚠️ **Note:** This direct endpoint test bypasses MaaS governance. Once subscriptions and authorization policies are configured, users will access models through the MaaS gateway with enforced token limits.
-
-## List Published Models
-
-1. List all MaaSModelRef resources across namespaces:
-
-```bash
-oc get maasmodelref --all-namespaces
+  }' | jq .
 ```
 
 Expected output:
 
-```text
-NAMESPACE       NAME               AGE
-your-project    llama-2-7b-chat    10m
-team-b          mistral-7b         5m
+```yaml
+{
+  "id": "chatcmpl-f405f395-2516-4988-ad9d-12998fd50b25",
+  "object": "chat.completion",
+  "created": 1795692587,
+  "model": "qwen25-05b-llmd",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "OpenShift is an open-source container orchestration platform developed by Red Hat. It provides a comprehensive set of tools and services for deploying, managing, and scaling applications on Kubernetes. OpenShift allows developers to create, manage, and deploy containerized applications using a variety of programming languages, including Go, Java, Python, Ruby, and Node.js. The platform also supports various deployment strategies such as rolling updates, auto-scaling, and automatic scaling based on demand. Additionally, itoffers features like version control",
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [],
+        "reasoning": null
+      },
+      "logprobs": null,
+      "finish_reason": "length",
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 24,
+    "total_tokens": 124,
+    "completion_tokens": 100,
+    "prompt_tokens_details": null
+  },
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}
 ```
 
-2. View detailed information about a specific model:
+?> ✅ A successful response returns JSON with the model's completion.
+
+!> ⚠️ **Note:** Once subscriptions and authorization policies are configured, users will access models through the MaaS gateway with enforced token limits.
+
+
+### Test Model Endpoint (API Key based)
+
+Now, we should also validate the model endpoint leveraging MaaS alongside API Key for authentication and authorization.
+
+1. Generate the respective API Key:
 
 ```bash
-oc describe maasmodelref llama-2-7b-chat -n your-project
+# Get the model URL
+MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
+
+# Get a new API Key
+API_KEY=$(curl -sSk -X POST "${HOST}/maas-api/v1/api-keys" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"workshop-key","expiresIn":"1h","subscription":"qwen25-05b-llmd-demo"}' | jq -r .key)
 ```
 
-## Troubleshooting Model Deployment
-
-### Model Deployment Stuck in Creating Status
-
-**Issue**: Model deployment shows "Creating" status for extended time.
-
-**Solution**:
-
-1. Check pod status:
+2. Test the model endpoint using the created API Key:
 
 ```bash
-oc get pods -n your-project -l inference.opendatahub.io/llm-inference-service=llama-2-7b-chat
+# Test the model endpoint
+curl -k -X POST "${MODEL_URL}/v1/chat/completions" \
+  -H "Authorization: Bearer ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen25-05b-llmd",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "What is OpenShift?"}
+    ],
+    "max_tokens": 100,
+    "temperature": 0.7
+  }' | jq .
 ```
 
-2. Check pod events:
+Expected output:
 
-```bash
-oc describe pod <pod-name> -n your-project
+```yaml
+{
+  "id": "chatcmpl-48fb6385-dcf0-4a83-91d3-ac676694cfdb",
+  "object": "chat.completion",
+  "created": 1795692188,
+  "model": "qwen25-05b-llmd",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "OpenShift is an open-source container orchestration platform developed by Red Hat. It provides a simple and intuitive way to manage and deploy applications across multiple Kubernetes clusters. OpenShift supports various programming languages, including Java, Python, Go, and Ruby, making it easy for developers to build and deploy applications quickly and easily.\nSome key features of OpenShift include:\n\n  * Containerized applications: Applications can be built and deployed using Docker images, which are packaged as containers that run on Kubernetes clusters.\n  *",
+        "refusal": null,
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [],
+        "reasoning": null
+      },
+      "logprobs": null,
+      "finish_reason": "length",
+      "stop_reason": null,
+      "token_ids": null
+    }
+  ],
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "prompt_tokens": 24,
+    "total_tokens": 124,
+    "completion_tokens": 100,
+    "prompt_tokens_details": null
+  },
+  "prompt_logprobs": null,
+  "prompt_token_ids": null,
+  "kv_transfer_params": null
+}
 ```
-
-Common issues:
-
-- Insufficient GPU resources: Check node capacity
-- Image pull errors: Verify network connectivity and image registry access
-- Storage connection issues: Verify data connection secret is correct
-
-### MaaSModelRef Not Created
-
-**Issue**: Model deployed but MaaSModelRef is missing.
-
-**Solution**:
-
-1. Verify that you selected "Publish as MaaS" in the deployment wizard.
-2. Check MaaS controller logs:
-
-```bash
-oc logs -n redhat-ods-applications -l control-plane=controller-manager,app.kubernetes.io/name=maas-controller
-```
-
-### Model Not Visible in Dashboard
-
-**Issue**: Model deployed but not visible in MaaS models list.
-
-**Solution**:
-
-1. Verify namespace has the correct labels:
-
-```bash
-oc get namespace your-project --show-labels
-```
-
-2. Check dashboard configuration:
-
-```bash
-oc get odhdashboardconfig default-odh-dashboard-config -n redhat-ods-applications -o jsonpath='{.spec.dashboardConfig.modelsAsAService}'
-```
-
-## Next Steps
-
-Now that your model is deployed and published to MaaS:
-
-1. **Create subscriptions** to grant groups quota for this model with token limits
-2. **Create authorization policies** to grant API gateway access
-3. **Generate API keys** for users to access the model
-
-**Congratulations!** You have successfully deployed a model with Models-as-a-Service. In the next section, you will configure subscriptions to control model access and token limits.

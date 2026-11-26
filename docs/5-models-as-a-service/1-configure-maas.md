@@ -607,7 +607,7 @@ spec:
   port:
     targetPort: 443
   tls:
-    termination: reencrypt
+    termination: passthrough
     insecureEdgeTerminationPolicy: Redirect
   to:
     kind: Service
