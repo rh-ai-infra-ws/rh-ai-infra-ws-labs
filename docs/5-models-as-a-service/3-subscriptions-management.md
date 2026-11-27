@@ -230,26 +230,8 @@ curl -ksS -H "Authorization: Bearer $(oc whoami -t)" \
 
 ?> ✅ The value is a counter. After the `429`, it is `1` or higher. `authorized_hits` for the same route still holds the tokens from the successful call.
 
-6. Open the same rejection in the OpenShift AI dashboard:
 
-```bash
-CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
-echo "https://data-science-gateway.${CLUSTER_DOMAIN}"
-```
-
-   a. Click **Observe & monitor** → **Dashboard**.
-
-   b. Open the **Usage** tab.
-
-   c. Set **Time period** to **Last 5 minutes**.
-
-   d. Set **Subscription** to `qwen25-05b-llmd-demo`.
-
-   e. In **Token Consumption by User**, the row for this subscription shows **Tokens** from the successful call and **Rate Limited** greater than zero.
-
-The **Rate Limited** column is the count of HTTP `429` responses. **Success Rate** in the overview leaves those rejections out of the successful share. The same series is on the OpenShift console under **Observe** → **Metrics**, with the `limited_calls` query from the previous step.
-
-7. Restore the original limit of 5,000,000 tokens per minute:
+6. Restore the original limit of 5,000,000 tokens per minute:
 
 ```bash
 oc patch maassubscription qwen25-05b-llmd-demo -n models-as-a-service --type=json -p '[
