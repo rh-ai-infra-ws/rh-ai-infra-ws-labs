@@ -331,7 +331,7 @@ echo "https://data-science-gateway.${CLUSTER_DOMAIN}"
 3. Set **Time period** to **Last 1 hour**.
 4. Set **Subscription** to `qwen25-05b-llmd-demo`. Leave **User** and **Model** on **All** unless you want to narrow the view.
 5. Read the overview: **Total Tokens**, **Total Requests**, **Total Errors**, **Success Rate**, and **Active Users**.
-6. In **Token Consumption by User**, confirm a row for this subscription. **Tokens** and **Requests** are greater than zero after the chat completion above. **Rate Limited** stays at zero while calls stay under 5,000,000 tokens per minute.
+6. In **Token Consumption by User**, confirm a row for this subscription. **Tokens** and **Requests** are greater than zero after the chat completion above. **Rate Limited** stays at zero while calls stay under 5,000,000 tokens per minute. After the limit exercise in the subscription lab, set **Time period** to **Last 5 minutes**: **Rate Limited** is greater than zero and matches the HTTP `429` responses from that exercise.
 
 ?> ✅ Hover the token table and click **Export as CSV** to download the rows for the selected period and filters. The file is the showback export for this subscription.
 

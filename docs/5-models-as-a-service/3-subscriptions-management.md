@@ -130,6 +130,144 @@ A `403` means the authorization policy does not include the caller's group. Conf
 oc get maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service
 ```
 
+## Reach the token limit
+
+The limit of 5,000,000 tokens per minute accepts the chat call above. Lower it to 10 tokens per minute so the next call in the same minute is rejected. The gateway reads `usage.total_tokens` from a successful response and adds that number to the counter for `qwen25-05b-llmd-demo`.
+
+1. Set the limit to 10 tokens per minute:
+
+```bash
+oc patch maassubscription qwen25-05b-llmd-demo -n models-as-a-service --type=json -p '[
+  {"op":"replace","path":"/spec/modelRefs/0/tokenRateLimits/0/limit","value":10}
+]'
+```
+
+2. Wait until the gateway policy uses that limit and is `Enforced`. The limit name includes the value, so it changes from `tokens-5000000-per-1m` to `tokens-10-per-1m`:
+
+```bash
+oc get tokenratelimitpolicy maas-trlp-qwen25-05b-llmd -n project01-model-deploy -o json | jq '{
+  enforced: ([.status.conditions[] | select(.type=="Enforced") | .status][0]),
+  limit: (.spec.limits | to_entries[0] | {name: .key, value: .value.rates[0]})
+}'
+```
+
+Expected output:
+
+```json
+{
+  "enforced": "True",
+  "limit": {
+    "name": "tokens-10-per-1m",
+    "value": {
+      "limit": 10,
+      "window": "1m"
+    }
+  }
+}
+```
+
+Send traffic only after `enforced` is `True` and the limit name is `tokens-10-per-1m`. The counter is per subscription and per user, and the window is one minute.
+
+3. Send chat requests until the gateway rejects one. The loop prints the HTTP status and, for `429`, the response body:
+
+```bash
+MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
+TOKEN=$(oc whoami -t)
+
+for i in 1 2 3 4 5 6; do
+  CODE=$(curl -ksS -o /tmp/maas-limit-body -w '%{http_code}' \
+    -X POST "${MODEL_URL}/v1/chat/completions" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{"model":"qwen25-05b-llmd","messages":[{"role":"user","content":"What is OpenShift?"}],"max_tokens":50}')
+  echo "request ${i}: HTTP ${CODE}"
+  if [ "${CODE}" = "429" ]; then
+    echo "response:"
+    cat /tmp/maas-limit-body
+    echo
+    break
+  fi
+  jq '{total_tokens: .usage.total_tokens}' /tmp/maas-limit-body
+done
+```
+
+Expected output:
+
+```text
+request 1: HTTP 200
+{
+  "total_tokens": 74
+}
+request 2: HTTP 429
+response:
+Too Many Requests
+```
+
+?> ✅ `total_tokens` on the first response is greater than 10, so that call fills the window. The next call in the same minute is HTTP `429` and the body is `Too Many Requests`. The exact token count changes between calls. If request 1 is already `429`, this minute already contains a successful call. Wait one minute and run the loop again.
+
+4. Read the same rejection in the gateway access log. The status on the inference path is `429`:
+
+```bash
+oc logs -n openshift-ingress -l gateway.networking.k8s.io/gateway-name=maas-default-gateway -c istio-proxy --tail=200 \
+  | grep 'qwen25-05b-llmd/v1/chat/completions'
+```
+
+A rejected line contains:
+
+```text
+"POST /project01-model-deploy/qwen25-05b-llmd/v1/chat/completions HTTP/2" 429
+```
+
+5. Read the Limitador counter. User workload Prometheus scrapes it. The series appears after the next scrape, which can take about a minute:
+
+```bash
+THANOS=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}')
+
+curl -ksS -H "Authorization: Bearer $(oc whoami -t)" \
+  --data-urlencode 'query=limited_calls{limitador_namespace="project01-model-deploy/qwen25-05b-llmd-kserve-route"}' \
+  "https://${THANOS}/api/v1/query" | jq '.data.result[].value'
+```
+
+?> ✅ The value is a counter. After the `429`, it is `1` or higher. `authorized_hits` for the same route still holds the tokens from the successful call.
+
+6. Open the same rejection in the OpenShift AI dashboard:
+
+```bash
+CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+echo "https://data-science-gateway.${CLUSTER_DOMAIN}"
+```
+
+   a. Click **Observe & monitor** → **Dashboard**.
+
+   b. Open the **Usage** tab.
+
+   c. Set **Time period** to **Last 5 minutes**.
+
+   d. Set **Subscription** to `qwen25-05b-llmd-demo`.
+
+   e. In **Token Consumption by User**, the row for this subscription shows **Tokens** from the successful call and **Rate Limited** greater than zero.
+
+The **Rate Limited** column is the count of HTTP `429` responses. **Success Rate** in the overview leaves those rejections out of the successful share. The same series is on the OpenShift console under **Observe** → **Metrics**, with the `limited_calls` query from the previous step.
+
+7. Restore the original limit of 5,000,000 tokens per minute:
+
+```bash
+oc patch maassubscription qwen25-05b-llmd-demo -n models-as-a-service --type=json -p '[
+  {"op":"replace","path":"/spec/modelRefs/0/tokenRateLimits/0/limit","value":5000000}
+]'
+
+oc get tokenratelimitpolicy maas-trlp-qwen25-05b-llmd -n project01-model-deploy \
+  -o jsonpath='{.spec.limits}' | jq 'keys'
+```
+
+Expected output:
+
+```json
+[
+  "tokens-5000000-per-1m"
+]
+```
+
 ## When the limit is not enforced
 
 1. Confirm Kuadrant observability is enabled:
