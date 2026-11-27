@@ -781,6 +781,60 @@ NAME                  READY   TENANT NAMESPACE      GATEWAY                AGE
 models-as-a-service   True    models-as-a-service   maas-default-gateway   71m
 ```
 
+### Capture the user on usage metrics
+
+`MaasTenantConfig` `default-tenant` exists once the tenant is ready. An empty `spec.telemetry` leaves collection on and the `user` label off. The **Usage** tab in the monitoring lab keeps only series with a `user` label, so turn user capture on now, before the first chat completion.
+
+Group capture stays off. One `user` label per caller is what that tab reads.
+
+1. Set telemetry on the default tenant:
+
+```bash
+oc patch maastenantconfigs.maas.opendatahub.io default-tenant -n models-as-a-service --type=merge -p '{
+  "spec": {
+    "telemetry": {
+      "enabled": true,
+      "metrics": {
+        "captureOrganization": true,
+        "captureUser": true,
+        "captureGroup": false,
+        "captureModelUsage": true
+      }
+    }
+  }
+}'
+```
+
+2. Read the setting back:
+
+```bash
+oc get maastenantconfigs.maas.opendatahub.io default-tenant -n models-as-a-service \
+  -o jsonpath='enabled={.spec.telemetry.enabled}{"\n"}model={.spec.telemetry.metrics.captureModelUsage}{"\n"}user={.spec.telemetry.metrics.captureUser}{"\n"}'
+```
+
+Expected output:
+
+```text
+enabled=true
+model=true
+user=true
+```
+
+3. Confirm the gateway policy emits the user label. Repeat the command until it prints the expression. The controller writes `TelemetryPolicy` `maas-telemetry` after the patch:
+
+```bash
+oc get telemetrypolicies.extensions.kuadrant.io maas-telemetry -n openshift-ingress \
+  -o jsonpath='{.spec.metrics.default.labels.user}{"\n"}'
+```
+
+Expected output:
+
+```text
+auth.identity.userid
+```
+
+?> ✅ Send chat completions only after this value is `auth.identity.userid`. Calls made before the policy has that label stay on series with no `user`, and the **Usage** tab ignores them.
+
 **Congratulations!** You have successfully configured Models-as-a-Service infrastructure. In the next section, you will deploy models with MaaS governance.
 
 ## Objects created by this procedure
@@ -830,3 +884,5 @@ Create `kuadrant-system` and the `Kuadrant` resource only when Connectivity Link
 | Namespace | `models-as-a-service` | — | MaaS controller; tenant namespace |
 | Deployment and Service | `maas-api` | `redhat-ai-gateway-infra` | MaaS controller |
 | Deployment | `maas-controller` | `redhat-ods-applications` | OpenShift AI operator |
+| MaasTenantConfig | `default-tenant` | `models-as-a-service` | MaaS controller. This lab sets `spec.telemetry` so usage metrics include the `user` label |
+| TelemetryPolicy | `maas-telemetry` | `openshift-ingress` | MaaS controller, after `spec.telemetry` on `default-tenant` |
