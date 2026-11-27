@@ -311,23 +311,30 @@ echo "https://data-science-gateway.${CLUSTER_DOMAIN}"
 1. Click **Settings** → **MaaS governance**. The **Subscriptions** tab is selected.
 2. Find `qwen25-05b-llmd-demo`.
 
+![MaaS governance Subscriptions tab](images/maas-subs.png)
+
 | Column | Value in this lab |
 | --- | --- |
-| Status | `Active` |
-| Groups | `system:authenticated:oauth` |
-| Models | `qwen25-05b-llmd`, limit `5000000` tokens per `1m` |
+| Status | `Ready` |
+| Groups | `1` |
+| Models | `1` |
 | Priority | `0` |
 
-3. Click the subscription name and confirm the group, the model namespace `project01-model-deploy`, and the token limit match the table.
+3. Click the subscription name and confirm the group `system:authenticated:oauth`, the model `qwen25-05b-llmd` in `project01-model-deploy`, and the limit of `5000000` tokens per `1m`.
 4. Open the **Authorization policies** tab.
-5. Find `qwen25-05b-llmd-auth`. Status is `Active`. The group is `system:authenticated:oauth`, and the model is `qwen25-05b-llmd` in `project01-model-deploy`.
+5. Find `qwen25-05b-llmd-auth`. The badge is `Ready`. The group is `system:authenticated:oauth`, and the model is `qwen25-05b-llmd` in `project01-model-deploy`.
+
+![MaaS governance Authorization policies tab](images/maas-auth.png)
 
 ?> ✅ These rows are the `MaaSSubscription` and `MaaSAuthPolicy` applied in the deployment lab. A `Failed` status is the same condition you read with `oc get` in the subscription and API key labs.
 
 ### Usage dashboard
 
-1. Click **Observe & monitor** → **Dashboard**.
-2. Open the **Usage** tab. The page has three tabs: **Cluster**, **Models**, and **Usage**. MaaS token usage is on **Usage**.
+1. Click **Observe & monitor** → **Dashboard**. The **Cluster** tab is selected.
+
+![OpenShift AI dashboard on the Cluster tab](images/monitor-dashboard.png)
+
+2. Open the **Usage** tab. The bar also includes **Models**, **LLM Traffic**, **LLM Utilization**, and **LLM Performance**. MaaS token usage is on **Usage**.
 3. Set **Time period** to **Last 1 hour**.
 4. Set **Subscription** to `qwen25-05b-llmd-demo`. Leave **User** and **Model** on **All** unless you want to narrow the view.
 5. Read the overview: **Total Tokens**, **Total Requests**, **Total Errors**, **Success Rate**, and **Active Users**.

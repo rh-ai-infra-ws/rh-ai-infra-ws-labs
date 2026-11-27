@@ -24,7 +24,7 @@ A call needs both the policy and the subscription. The gateway treats the two be
 - A token from `oc whoami -t` is checked with Kubernetes TokenReview. Use it for `${HOST}/maas-api/...`.
 - A key that starts with `sk-oai-` is checked by the MaaS API. Use it for the inference URL from the `LLMInferenceService`.
 
-The plaintext key is returned only by the create response. Later list and get calls return the key id, name, subscription, and status.
+The plaintext key is returned only by the create response. Later list and get calls return the key id, name, subscription, and status. The OpenShift AI dashboard lists the name, status, subscription, owner, and dates for each key.
 
 ## Review the authorization policy
 
@@ -121,6 +121,34 @@ Expected output:
 ```
 
 `groups` on the same object is the membership recorded when the key was created.
+
+## Review API keys in the OpenShift AI console
+
+Open the dashboard as a cluster administrator, using the same OpenShift user that created `lab-key`. The host is the data-science gateway route:
+
+```bash
+CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+echo "https://data-science-gateway.${CLUSTER_DOMAIN}"
+echo "owner: $(oc whoami)"
+```
+
+1. Click **Gen AI studio** → **API keys**. The **API keys** tab is selected.
+2. Set **Status** to **Active**.
+3. Find the row named `lab-key`.
+
+| Column | Value in this lab |
+| --- | --- |
+| Name | `lab-key` |
+| Status | `Active` |
+| Subscription | `qwen25-05b-llmd-demo` |
+| Owner | the user printed as `owner` above |
+| Created | the time of the create call |
+| Last used | `Never` until the chat request in the next section |
+| Expires | one hour after **Created** |
+
+![API keys page showing lab-key](images/maas-api-keys.png)
+
+?> ✅ The row matches the search result from the previous section. The name line includes the description `Lab key for qwen25-05b-llmd`. Read the `sk-oai-` secret from `${API_KEY}` in the shell. A `workshop-key` row from the deployment lab stays `Active` until its one-hour lifetime ends. Sort **Created** descending to see `lab-key` first.
 
 ## Call the model
 
