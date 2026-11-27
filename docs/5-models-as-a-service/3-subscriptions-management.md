@@ -1,288 +1,159 @@
 # 🎫 Managing Subscriptions
 
-This lab guides you through creating and managing subscriptions for Models-as-a-Service (MaaS). Subscriptions control group access to models and enforce token limits based on user group membership.
+This lab uses the subscription created in the previous section. A subscription gives a group a token limit for a model. It does not, by itself, allow that group to call the model. The `MaaSAuthPolicy` from the previous lab does that.
 
-## Understanding MaaS Subscriptions
+Complete the configuration and deployment labs first. Those labs create:
 
-Models-as-a-Service uses **subscription-based access control** to manage quotas and token limits for AI model serving. Subscriptions enable you to:
-
-- **Prevent resource exhaustion** by enforcing token limits per model
-- **Provide different access levels** for different user groups
-- **Track and allocate costs** based on team consumption
-- **Control access** to high-cost or sensitive models
-- **Support multi-subscription membership** where users can belong to multiple subscriptions
-
-> **Note:** In OpenShift AI 3.3, MaaS used a tier-based model. Starting with OpenShift AI 3.4, tiers have been replaced with subscriptions, providing more flexibility and GitOps compatibility through custom resources.
-
-### Subscription Properties
-
-Each subscription is defined as a `MaaSSubscription` custom resource with the following properties:
-
-| Property | Description |
-| --- | --- |
-| **Name** | Unique identifier that becomes the Kubernetes resource name |
-| **Description** | Optional human-readable description shown in the dashboard |
-| **Groups** | One or more groups whose members can access this subscription |
-| **Priority Level** | Numeric value determining subscription precedence (0 = lowest, higher = more priority) |
-| **Models** | List of models with configurable token limits for each |
-
-### Subscriptions vs Authorization Policies
-
-Both subscriptions and authorization policies are required for users to access models:
-
-- **Subscription**: Gives groups quota for specific models with token rate limits
-- **Authorization Policy**: Grants groups access to model endpoints through the API gateway
-
-> **Important:** Without an authorization policy, users receive `403 Forbidden` errors even if they have a valid subscription.
-
-## Priority Levels
-
-Priority levels determine which subscription is selected when creating an API key **without explicitly specifying a subscription**. When a user belongs to multiple groups with different subscriptions, the subscription with the **highest priority** is selected as the default.
-
-### Recommended Priority Scheme
-
-Use a consistent priority numbering scheme:
-
-| Use Case | Priority | Description |
+| Kind | Name | Namespace |
 | --- | --- | --- |
-| **Production workloads** | 100 | Customer-facing applications, production APIs, critical business processes |
-| **Staging/Pre-production** | 50 | QA testing, UAT, performance testing |
-| **Development** | 0 (default) | Exploratory work, prototypes, learning |
-| **Personal/Sandbox** | -10 | Individual experimentation, tutorials, non-business use |
+| LLMInferenceService | `qwen25-05b-llmd` | `project01-model-deploy` |
+| MaaSModelRef | `qwen25-05b-llmd` | `project01-model-deploy` |
+| MaaSSubscription | `qwen25-05b-llmd-demo` | `models-as-a-service` |
+| MaaSAuthPolicy | `qwen25-05b-llmd-auth` | `models-as-a-service` |
 
-?> 💡 **Best Practice:** Use incremental values with gaps (10, 20, 30) rather than consecutive numbers (0, 1, 2) to allow for inserting intermediate priorities later.
+The owner group is `system:authenticated:oauth`. That is the group on an `oc login` session, including the account behind `oc whoami -t`.
 
-### Priority Use Cases
+## Subscription fields
 
-**Separate production and development resources**
+`qwen25-05b-llmd-demo` sets these fields:
 
-- Production subscription (priority 100): Stricter quotas, billed to production cost centers
-- Development subscription (priority 0): Generous quotas, billed to R&D
-- Production applications automatically use the production subscription
-- Developers must explicitly select the development subscription for testing
+| Field | Value in this lab | Purpose |
+| --- | --- | --- |
+| `spec.owner.groups` | `system:authenticated:oauth` | Group that receives the quota |
+| `spec.modelRefs` | `qwen25-05b-llmd` in `project01-model-deploy` | Model the quota applies to |
+| `spec.modelRefs[].tokenRateLimits` | `5000000` tokens per `1m` | Rate limit enforced for that model |
+| `spec.tokenMetadata` | `costCenter` and `organizationId` | Labels stored with usage |
 
-**Team-based access with overlapping membership**
+`oc get maassubscription` prints a `PRIORITY` column. This subscription does not set a priority, so the column is `0`. When a user belongs to more than one subscription and an API key is created without `"subscription"`, MaaS selects the subscription with the highest priority. The key created in the previous lab names `qwen25-05b-llmd-demo`, so that selection is not used.
 
-- "ML Platform Team" (priority 10): Access to all models
-- "Analytics Team" (priority 5): Analytics-focused models only
-- Users in both teams default to ML Platform Team subscription
+Leave gaps between priority values (`0`, `10`, `20`) when you add more subscriptions later. A failed subscription still occupies its name. Fix the object instead of creating a second one with the next integer.
 
-**Cost-tiered model access**
+## Review the subscription
 
-- "Standard Models" (priority 10): Cheaper models with higher quotas
-- "Premium Models" (priority 0): Expensive models with limited quotas
-- Users consume cheaper resources by default
-- Explicit selection required for premium models
-
-## Create a Subscription via Dashboard
-
-### Using the Dashboard Wizard
-
-1. Log in to the OpenShift AI dashboard as an administrator.
-2. Click **Settings** → **MaaS governance**.
-3. The **Subscriptions** tab is displayed by default. Click **Create subscription**.
-4. In the **Create subscription** dialog, configure the following:
-
-### Configure Basic Settings
-
-1. **Name**: Enter a unique name (e.g., `data-science-team-premium`)
-
-?> 📎 By default, the resource name matches the subscription name. To customize, click **Edit resource name**.
-
-2. **Description** (optional): Enter a description (e.g., "Production access for data science team with premium models")
-3. **Groups**: Select groups to grant access to this subscription
-   - Click the dropdown to select existing OpenShift groups
-   - Type to add new group names
-   - You can select multiple groups
-
-?> 📎 Groups can come from OpenShift Group objects, API key group snapshots, or OIDC token claims depending on your authentication method.
-
-### Configure Priority
-
-1. **Priority**: Enter a numeric priority level
-   - Higher numbers = higher priority
-   - Default: 0
-   - Recommended: Use the priority scheme described above
-
-Example values:
-
-- Production: `100`
-- Staging: `50`
-- Development: `0`
-- Sandbox: `-10`
-
-### Add Models and Token Limits
-
-1. In the **Models** section, click **Add models**.
-2. In the **Add models to subscription** dialog:
-   - Browse the list of available models
-   - Use the search field to filter by name or description
-   - Review the **Policies** column to see which authorization policies already include each model
-3. For each model to add, click **Add model**.
-4. Click **Add models** to add selected models to the subscription.
-5. Configure token limits for each model:
-
-   a. In the **Token limit** column for each model, click **Edit limit**.
-
-    b. In the token limit configuration dialog, set:
-       - **Tokens per request**: Maximum tokens per single inference request
-       - **Tokens per minute**: Token rate limit over time
-       - **Tokens per day**: Daily token quota
-
-    ?> 💡 **Example limits:**
-   - **Development**: 2048 per request, 10,000 per minute, 100,000 per day
-   - **Production**: 8192 per request, 100,000 per minute, 1,000,000 per day
-
-    c. Click **Save**.
-
-### Create Authorization Policy (Optional)
-
-1. **Create matching authorization policy**: Check this box to automatically create an authorization policy with the same groups and models
-
-?> ✅ **Recommended:** Enable this option so users can immediately access models. Without an authorization policy, users will get `403 Forbidden` errors.
-
-### Review and Create
-
-1. Review all settings in the dialog.
-2. Click **Create subscription**.
-3. The subscription appears in the **Subscriptions** table with **Active** status.
-
-## Monitor Subscriptions
-
-### View All Subscriptions via Dashboard
-
-1. Navigate to **Settings** → **MaaS governance** → **Subscriptions** tab.
-2. Review the subscriptions table:
-
-| Column | Description |
-| --- | --- |
-| **Subscription** | Unique identifier |
-| **Status** | Active, Failed, or other status |
-| **Groups** | Number of assigned user groups (click to expand) |
-| **Models** | Count of models included (click to expand) |
-| **Priority** | Priority level for this subscription |
-
-3. **Filter and sort**:
-   - Use the **Keyword** dropdown to select filter criteria
-   - Enter text in **Filter by name or description**
-   - Click column headers to sort
-4. Click a subscription name to view details:
-   - Full configuration
-   - Groups list
-   - Models with token limits
-   - Synchronization status
-
-### Test Model Access
-
-1. As a user in the subscription group, generate an API key (covered in the next section).
-2. Test model access through the MaaS gateway:
+1. Confirm the subscription is `Active` and the priority is `0`:
 
 ```bash
-# Get gateway hostname
-GATEWAY_HOST=$(oc get gateway maas-default-gateway -n openshift-ingress -o jsonpath='{.spec.listeners[0].hostname}')
+oc get maassubscription qwen25-05b-llmd-demo -n models-as-a-service
+```
 
-# Test with API key
-curl -k -X POST "https://${GATEWAY_HOST}/v1/chat/completions" \
-  -H "Authorization: Bearer sk-oai-<your-api-key>" \
+Expected output:
+
+```text
+NAME                   PHASE    PRIORITY   AGE
+qwen25-05b-llmd-demo   Active   0          1h
+```
+
+2. Read the token limit:
+
+```bash
+oc get maassubscription qwen25-05b-llmd-demo -n models-as-a-service \
+  -o jsonpath='{.spec.modelRefs[0].tokenRateLimits[0]}{"\n"}'
+```
+
+Expected output:
+
+```text
+{"limit":5000000,"window":"1m"}
+```
+
+`PHASE` must be `Active` before you change the limit or call the model. `Failed` means a model reference or namespace in `spec.modelRefs` does not exist. Check the conditions:
+
+```bash
+oc get maassubscription qwen25-05b-llmd-demo -n models-as-a-service \
+  -o jsonpath='{.status.conditions}{"\n"}' | jq .
+```
+
+## Change the token limit
+
+1. Lower the limit to 100,000 tokens per minute:
+
+```bash
+oc patch maassubscription qwen25-05b-llmd-demo -n models-as-a-service --type=json -p '[
+  {"op":"replace","path":"/spec/modelRefs/0/tokenRateLimits/0/limit","value":100000}
+]'
+```
+
+2. Read the limit again and confirm the phase is still `Active`:
+
+```bash
+oc get maassubscription qwen25-05b-llmd-demo -n models-as-a-service \
+  -o jsonpath='{.status.phase}{" "}{.spec.modelRefs[0].tokenRateLimits[0]}{"\n"}'
+```
+
+Expected output:
+
+```text
+Active {"limit":100000,"window":"1m"}
+```
+
+3. Restore the original limit of 5,000,000 tokens per minute:
+
+```bash
+oc patch maassubscription qwen25-05b-llmd-demo -n models-as-a-service --type=json -p '[
+  {"op":"replace","path":"/spec/modelRefs/0/tokenRateLimits/0/limit","value":5000000}
+]'
+```
+
+The gateway copies this limit into a `TokenRateLimitPolicy` named `maas-trlp-qwen25-05b-llmd` in `project01-model-deploy`. After the patch, that policy should exist:
+
+```bash
+oc get tokenratelimitpolicy maas-trlp-qwen25-05b-llmd -n project01-model-deploy
+```
+
+## Call the model
+
+Use the URL stored on the `LLMInferenceService`. It already contains `/project01-model-deploy/qwen25-05b-llmd`. Appending `/v1/chat/completions` matches the gateway route. A request to `https://maas.<cluster-domain>/v1/chat/completions` does not.
+
+1. Call the model with your OpenShift user token:
+
+```bash
+MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
+TOKEN=$(oc whoami -t)
+
+curl -ksS -X POST "${MODEL_URL}/v1/chat/completions" \
+  -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "llama-2-7b-chat",
-    "messages": [{"role": "user", "content": "Hello"}],
+    "model": "qwen25-05b-llmd",
+    "messages": [
+      {"role": "user", "content": "What is OpenShift?"}
+    ],
     "max_tokens": 50
-  }'
+  }' | jq .
 ```
 
-?> ✅ A successful response returns HTTP 200 with the model completion.
+?> ✅ The response is a chat completion. `choices[0].message.role` is `assistant`, and `usage` reports the token counts. The same URL accepts an `sk-oai-` key created for `qwen25-05b-llmd-demo`.
 
-## Troubleshooting Subscriptions
-
-### Subscription Shows Failed Status
-
-**Issue**: Subscription in Failed phase.
-
-**Solution**:
-
-1. Check subscription conditions:
+A `403` means the authorization policy does not include the caller's group. Confirm `qwen25-05b-llmd-auth` is `Active` and its group is `system:authenticated:oauth`:
 
 ```bash
-oc get maassubscription <name> -n models-as-a-service -o jsonpath='{.status.conditions}' | jq '.'
+oc get maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service
 ```
 
-2. Common causes:
-   - Model reference not found: Verify MaaSModelRef exists
-   - Invalid group name: Check OpenShift groups
-   - Namespace not found: Verify model namespace exists
+## When the limit is not enforced
 
-### User Cannot Access Model Despite Subscription
-
-**Issue**: User has valid subscription but gets `403 Forbidden`.
-
-**Solution**:
-
-1. Verify authorization policy exists:
+1. Confirm Kuadrant observability is enabled:
 
 ```bash
-oc get maasauthpolicy -n models-as-a-service
+oc get kuadrant kuadrant -n kuadrant-system -o jsonpath='{.spec.observability.enable}{"\n"}'
 ```
 
-2. Check that the policy includes the same groups and models as the subscription.
-3. If missing, create a matching authorization policy (see examples above).
+Expected output:
 
-### Token Limits Not Enforced
-
-**Issue**: Users can exceed configured token limits.
-
-**Solution**:
-
-1. Verify Kuadrant observability is enabled:
-
-```bash
-oc get kuadrant kuadrant -n kuadrant-system -o jsonpath='{.spec.observability.enable}'
+```text
+true
 ```
 
-Expected output: `true`
-
-2. Check Limitador is running:
+2. Confirm Limitador is running:
 
 ```bash
 oc get pods -n kuadrant-system -l app=limitador
 ```
 
-3. Verify TokenRateLimitPolicy resources exist:
+3. Confirm the token-limit policy for this model exists:
 
 ```bash
-oc get tokenratelimitpolicy -n <model-namespace>
+oc get tokenratelimitpolicy -n project01-model-deploy
 ```
 
-## Best Practices for Subscriptions
-
-### Naming Conventions
-
-- Use descriptive names: `data-science-production`, `analytics-staging`
-- Include team/purpose: `ml-team-premium`, `research-development`
-- Avoid generic names: `subscription1`, `test`
-
-### Token Limit Recommendations
-
-| Environment | Tokens/Request | Tokens/Minute | Tokens/Day |
-| --- | --- | --- | --- |
-| **Development** | 2048 | 10,000 | 100,000 |
-| **Staging** | 4096 | 50,000 | 500,000 |
-| **Production** | 8192 | 100,000 | 1,000,000 |
-| **Enterprise** | 16384 | 500,000 | 10,000,000 |
-
-### Group Management
-
-- Use OpenShift groups for internal users
-- Use OIDC groups for external users
-- Align groups with organizational structure
-- Document group purposes and membership criteria
-
-### Priority Assignment
-
-- Leave gaps between priority values (10, 20, 30 vs 1, 2, 3)
-- Document priority scheme in team documentation
-- Review and adjust priorities periodically
-- Avoid setting all subscriptions to the same priority
-
-**Congratulations!** You have successfully created and managed subscriptions for Models-as-a-Service. In the next section, you will configure authorization policies and manage API keys.
+The policy `maas-trlp-qwen25-05b-llmd` must be listed. User workload monitoring, enabled in the configuration lab, collects the metrics this policy uses.

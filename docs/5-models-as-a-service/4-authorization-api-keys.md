@@ -1,405 +1,256 @@
-# 🔑 Authorization & API Keys
+# 🔑 Authorization and API keys
 
-This lab guides you through managing authorization policies and API keys for Models-as-a-Service (MaaS). You will learn how to control API gateway access and provide users with programmatic access to models.
+This lab uses the authorization policy created with the model. That policy allows a group to call the model. An API key is a separate credential, bound to one subscription, that you send on the inference URL.
 
-## Understanding Authorization and Authentication
+Complete the configuration, deployment, and subscription labs first. Those labs create:
 
-MaaS uses a two-layer access control model:
-
-### Authorization Policies (Gateway Access)
-
-**Authorization policies** grant groups access to model endpoints through the API gateway. Without an authorization policy, users receive `403 Forbidden` errors even if they have a valid subscription.
-
-### Subscriptions (Quota Management)
-
-**Subscriptions** define quota for models with token rate limits. Both a subscription and an authorization policy are required for users to access models.
-
-| Component | Purpose | Controls |
+| Kind | Name | Namespace |
 | --- | --- | --- |
-| **Subscription** | Quota management | Token limits, models available, priority |
-| **Authorization Policy** | Gateway access | Which groups can access which model endpoints |
+| LLMInferenceService | `qwen25-05b-llmd` | `project01-model-deploy` |
+| MaaSModelRef | `qwen25-05b-llmd` | `project01-model-deploy` |
+| MaaSSubscription | `qwen25-05b-llmd-demo` | `models-as-a-service` |
+| MaaSAuthPolicy | `qwen25-05b-llmd-auth` | `models-as-a-service` |
 
-!> ⚠️ **Critical:** Users need BOTH a subscription (for quota) AND an authorization policy (for gateway access) to use models.
+The group on the policy and the subscription is `system:authenticated:oauth`.
 
-### Gateway-Scoped Authentication
-
-In OpenShift AI 3.5+, MaaS uses a **single gateway-scoped AuthPolicy** per tenant gateway. This AuthPolicy aggregates authentication and authorization rules for all models served through the tenant's gateway.
-
-The gateway-scoped AuthPolicy enforces:
-
-- API key validation and OIDC token verification
-- Subscription checks for model access
-- Group membership validation
-- Tenant-gateway isolation
-
-## Manage Authorization Policies
-
-### View Authorization Policies via Dashboard
-
-1. Log in to the OpenShift AI dashboard as an administrator.
-2. Click **Settings** → **MaaS governance**.
-3. Click the **Authorization policies** tab.
-4. Review the authorization policies table:
-
-| Column | Description |
+| Object | What it controls |
 | --- | --- |
-| **Authorization policy** | Name of the policy |
-| **Status** | Current status (Active, Failed, Unknown) |
-| **Groups** | Number of authorized user groups (click to expand) |
-| **Models** | Number of model endpoints (click to expand) |
+| `MaaSAuthPolicy` | Which groups can call which models |
+| `MaaSSubscription` | The token limit for those models |
+| API key | A bearer token, prefixed `sk-oai-`, bound to one subscription |
 
-5. **Filter and organize**:
-   - Use **Keyword** dropdown to select filter criteria
-   - Enter text in **Filter by name or description**
-   - Click column headers to sort
-6. Click an authorization policy name to view details:
-   - Full configuration
-   - Groups list
-   - Models with namespaces
-   - Synchronization status
+A call needs both the policy and the subscription. The gateway treats the two bearer credentials differently:
 
-### Create Authorization Policy via Dashboard
+- A token from `oc whoami -t` is checked with Kubernetes TokenReview. Use it for `${HOST}/maas-api/...`.
+- A key that starts with `sk-oai-` is checked by the MaaS API. Use it for the inference URL from the `LLMInferenceService`.
 
-1. Navigate to **Settings** → **MaaS governance** → **Authorization policies** tab.
-2. Click **Create authorization policy**.
-3. Configure the policy:
+The plaintext key is returned only by the create response. Later list and get calls return the key id, name, subscription, and status.
 
-   **Name**: Enter a unique name (e.g., `ml-team-gateway-access`)
+## Review the authorization policy
 
-      ?> 📎 Click **Edit resource name** to customize the underlying Kubernetes resource name.
-
-      **Description** (optional): Enter a description (e.g., "Gateway access for ML team to production models")
-
-      **Groups**: Select groups to authorize
-   - Click dropdown to select existing OpenShift groups
-   - Type to add new group names
-   - Multiple groups supported
-
-     ?> 📎 Groups can be OpenShift groups, API key group snapshots, or OIDC token claims.
-4. Add models:
-
-   a. Click **Add models** in the Models section.
-
-      b. In the **Add models to authorization policy** dialog:
-         - Browse available models
-         - Use search field to filter
-         - Review **Subscriptions** and **Policies** columns
-
-      c. For each model to add, click **Add model**.
-
-      d. Click **Add models** to confirm.
-5. Click **Create authorization policy**.
-
-## Manage API Keys
-
-### Understanding API Keys
-
-API keys enable programmatic access to models through MaaS. Each key:
-
-- Has prefix `sk-oai-` for compatibility with OpenAI clients
-- Is bound to a specific subscription (determines accessible models and token limits)
-- Snapshots user group membership at creation time
-- Can have custom expiration periods
-- Is shown only once during creation (cannot be retrieved later)
-
-!> 🔒 **Security:** API keys snapshot group membership at creation. If a user is removed from a group, their existing API keys continue to grant access until revoked.
-
-### View All API Keys (Administrator)
-
-**Via Dashboard:**
-
-1. Navigate to **Gen AI studio** → **API keys**.
-2. Review the API keys table:
-
-| Column | Description |
-| --- | --- |
-| **Name** | Key name assigned during creation |
-| **Status** | Active, Expired, or Revoked |
-| **Subscription** | Subscription scoping the key's access |
-| **Owner** | Username of the key owner |
-| **Created** | Creation date |
-| **Last used** | Date of last model access |
-| **Expires** | Expiration date |
-
-3. **Filter and organize**:
-   - Filter by **Status**: Active, Expired, or Revoked
-   - Search by username
-   - Sort by clicking column headers
-   - Use pagination controls for large lists
-
-### Create API Key for a User (Administrator)
-
-**Via Dashboard:**
-
-1. Navigate to **Gen AI studio** → **API keys**.
-2. Click **Create API key**.
-3. Configure the key:
-
-   **Name**: Enter a descriptive name (e.g., `production-api-client-jan2025`)
-
-      **Description** (optional): Additional details about key purpose
-
-      **Subscription**: Select which subscription determines:
-   - Which models the key can access
-   - Token limits applied to requests
-
-     ?> 📎 The **Models** section displays models and limits from the selected subscription.
-
-     **Expiration**: Select expiration period:
-   - 30 days
-   - 60 days
-   - 90 days (default)
-   - 180 days
-   - 1 year
-   - Custom (1-365 days)
-
-     ?> 📎 Administrators can set a maximum expiration limit in the Tenant CR. Default maximum is 90 days.
-4. Click **Create**.
-5. In the **API key created** dialog:
-
-   !> 🔒 **Critical:** The plaintext key is displayed **only once** and cannot be retrieved later. Save it immediately in a secrets manager.
-
-      a. Click the copy icon to copy the key.
-
-      b. Store the key securely (e.g., HashiCorp Vault, AWS Secrets Manager).
-
-      c. Provide the key to the user through a secure channel (not email or chat).
-6. Click **Close**.
-
-### Create API Key via MaaS API
-
-1. Get your authentication token:
+1. Confirm `qwen25-05b-llmd-auth` is `Active`:
 
 ```bash
-# For OpenShift users
-TOKEN=$(oc whoami -t)
+oc get maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service
 ```
 
-2. Get the MaaS gateway hostname:
+Expected output:
 
-```bash
-GATEWAY_HOST=$(oc get gateway maas-default-gateway -n openshift-ingress -o jsonpath='{.spec.listeners[0].hostname}')
+```text
+NAME                   PHASE    AGE
+qwen25-05b-llmd-auth   Active   1h
 ```
 
-3. Create an API key:
+2. Read the group and the model reference:
 
 ```bash
-curl -k -X POST "https://${GATEWAY_HOST}/maas-api/v1/api-keys" \
-  -H "Authorization: Bearer ${TOKEN}" \
+oc get maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service \
+  -o jsonpath='group={.spec.subjects.groups[*].name}{"\n"}model={.spec.modelRefs[*].namespace}/{.spec.modelRefs[*].name}{"\n"}'
+```
+
+Expected output:
+
+```text
+group=system:authenticated:oauth
+model=project01-model-deploy/qwen25-05b-llmd
+```
+
+`Failed` means a model reference or namespace in `spec.modelRefs` does not exist. Read the conditions:
+
+```bash
+oc get maasauthpolicy qwen25-05b-llmd-auth -n models-as-a-service \
+  -o jsonpath='{.status.conditions}{"\n"}' | jq .
+```
+
+## Create an API key
+
+Set the gateway host once. The same variables are used by the later steps.
+
+```bash
+CLUSTER_DOMAIN=$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}')
+HOST="https://maas.${CLUSTER_DOMAIN}"
+```
+
+1. Read the longest expiration the API accepts:
+
+```bash
+curl -ksS "${HOST}/maas-api/v1/api-keys/config" \
+  -H "Authorization: Bearer $(oc whoami -t)" | jq .
+```
+
+?> ✅ The response includes `max_expiration_days`. `expiresIn` accepts values such as `1h`, `24h`, and `30d`. A duration past that maximum is rejected.
+
+2. Create a key bound to `qwen25-05b-llmd-demo`. The create call uses your OpenShift token:
+
+```bash
+export API_KEY=$(curl -ksS -X POST "${HOST}/maas-api/v1/api-keys" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"lab-key","description":"Lab key for qwen25-05b-llmd","expiresIn":"1h","subscription":"qwen25-05b-llmd-demo"}' \
+  | jq -er .key)
+
+echo "${API_KEY}" | grep -q '^sk-oai-' && echo "API key created"
+```
+
+?> ✅ The command prints `API key created`. Store `${API_KEY}` before the shell exits. A value of `null` means the create request failed. Run the curl again without `jq -er .key` and correct the error before continuing.
+
+The body field is `subscription`, and the duration field is `expiresIn`. Omitting `subscription` selects the highest-priority subscription for your groups. This lab names `qwen25-05b-llmd-demo`, which has priority `0`.
+
+## List the key
+
+Search with your OpenShift token. The response lists metadata. It does not include the `sk-oai-` secret.
+
+```bash
+curl -ksS -X POST "${HOST}/maas-api/v1/api-keys/search" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"filters":{"status":["active"]},"sort":{"by":"created_at","order":"desc"}}' \
+  | jq '.data[] | select(.name=="lab-key") | {id,name,subscription,status,expirationDate}'
+```
+
+Expected output:
+
+```json
+{
+  "id": "<key-id>",
+  "name": "lab-key",
+  "subscription": "qwen25-05b-llmd-demo",
+  "status": "active",
+  "expirationDate": "<timestamp>"
+}
+```
+
+`groups` on the same object is the membership recorded when the key was created.
+
+## Call the model
+
+Use the URL stored on the `LLMInferenceService`. It already contains `/project01-model-deploy/qwen25-05b-llmd`. Appending `/v1/chat/completions` matches the gateway route.
+
+```bash
+MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
+
+curl -ksS -X POST "${MODEL_URL}/v1/chat/completions" \
+  -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "my-api-key",
-    "description": "Key for production workloads",
-    "subscription_name": "data-science-team-premium",
-    "expiration_days": 90
-  }'
-```
-
-?> ✅ The response includes the plaintext API key. Save it immediately.
-
-### Configure API Key Expiration Limit
-
-Administrators can set a maximum expiration period for all API keys.
-
-**Via CLI:**
-
-1. Edit the Tenant custom resource:
-
-```bash
-oc edit tenants.maas.opendatahub.io default-tenant -n models-as-a-service
-```
-
-2. Add or update the `apiKeyConfig` section:
-
-```yaml
-spec:
-  apiKeyConfig:
-    maxExpirationDays: 180
-```
-
-?> 📎 Common values:
-
-- **30 days**: High-security environments
-- **90 days**: Standard security (default)
-- **180 days**: Moderate security
-- **365 days**: Low-security or service accounts
-
-3. Save and exit.
-
-**Via Patch:**
-
-```bash
-oc patch tenants.maas.opendatahub.io default-tenant -n models-as-a-service --type=merge --patch '
-spec:
-  apiKeyConfig:
-    maxExpirationDays: 180
-'
-```
-
-**Verification:**
-
-Test that the limit is enforced by attempting to create a key exceeding the maximum:
-
-```bash
-curl -k -X POST "https://${GATEWAY_HOST}/maas-api/v1/api-keys" \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "test-long-key",
-    "subscription_name": "my-subscription",
-    "expiration_days": 400
-  }'
-```
-
-Expected response: `400 Bad Request` with error message about exceeding maximum.
-
-## Test Model Access with API Key
-
-After creating an API key, test model access through the MaaS gateway.
-
-### Get Gateway Hostname
-
-```bash
-GATEWAY_HOST=$(oc get gateway maas-default-gateway -n openshift-ingress -o jsonpath='{.spec.listeners[0].hostname}')
-```
-
-### Test Chat Completions (Body-Based Routing)
-
-```bash
-curl -k -X POST "https://${GATEWAY_HOST}/v1/chat/completions" \
-  -H "Authorization: Bearer sk-oai-<your-api-key>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "llama-2-7b-chat",
+    "model": "qwen25-05b-llmd",
     "messages": [
-      {"role": "system", "content": "You are a helpful assistant."},
-      {"role": "user", "content": "What is Kubernetes?"}
+      {"role": "user", "content": "What is OpenShift?"}
     ],
-    "max_tokens": 100,
-    "temperature": 0.7
-  }'
+    "max_tokens": 50
+  }' | jq .
 ```
 
-?> ✅ **Recommended:** Body-based routing is compatible with OpenAI SDKs and clients.
+?> ✅ The response is a chat completion. `choices[0].message.role` is `assistant`, and `usage` reports the token counts.
 
-### Test with Python OpenAI Client
+The same call from an OpenAI client uses that inference URL as `base_url`, with `/v1` added. The cluster serving certificate is not in the default trust store, so this client skips verification the same way `curl -k` does. Run it from the same shell, after `API_KEY` and `MODEL_URL` are set:
 
-```python
+```bash
+export API_KEY2=$(curl -ksS -X POST "${HOST}/maas-api/v1/api-keys" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"lab-key-py","description":"Lab key for qwen25-05b-llmd using Python and OpenAI","expiresIn":"1h","subscription":"qwen25-05b-llmd-demo"}' \
+  | jq -er .key)
+
+export MODEL_URL=$(oc get llminferenceservice qwen25-05b-llmd -n project01-model-deploy -o jsonpath='{.status.url}')
+
+python3 - << 'PY'
+import os
+import httpx
 from openai import OpenAI
 
-# Initialize client
 client = OpenAI(
-    api_key="sk-oai-<your-api-key>",
-    base_url=f"https://{GATEWAY_HOST}/v1"
+    api_key=os.environ["API_KEY2"],
+    base_url=os.environ["MODEL_URL"].rstrip("/") + "/v1",
+    http_client=httpx.Client(verify=False),
 )
-
-# Make request
 response = client.chat.completions.create(
-    model="llama-2-7b-chat",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What is OpenShift?"}
-    ],
-    max_tokens=100
+    model="qwen25-05b-llmd",
+    messages=[{"role": "user", "content": "What is OpenShift?"}],
+    max_tokens=50,
 )
-
 print(response.choices[0].message.content)
+PY
 ```
 
-## Troubleshooting
+Install `openai` and `httpx` first if that command reports a missing module. The curl above is the check for this lab.
 
-### 403 Forbidden Errors
+## Revoke the key
 
-**Symptom**: User has valid API key and subscription but gets `403 Forbidden`.
-
-**Causes**:
-
-1. **No authorization policy** for the user's groups
-2. **Model not included** in the authorization policy
-3. **User removed from group** but key not revoked (group snapshot issue)
-
-**Solutions**:
-
-1. Verify authorization policy exists:
+1. Take the id of the active `lab-key`:
 
 ```bash
-oc get maasauthpolicy -n models-as-a-service
+export KEY_ID2=$(curl -ksS -X POST "${HOST}/maas-api/v1/api-keys/search" \
+  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Content-Type: application/json" \
+  -d '{"filters":{"status":["active"]}}' \
+  | jq -er '[.data[] | select(.name=="lab-key-py")][0].id')
+
+echo "${KEY_ID2}"
 ```
 
-2. Verify policy includes user's groups:
+2. Revoke that id with your OpenShift token:
 
 ```bash
-oc get maasauthpolicy <policy-name> -n models-as-a-service -o jsonpath='{.spec.groups}' | jq '.'
+curl -ksS -X DELETE "${HOST}/maas-api/v1/api-keys/${KEY_ID2}" \
+  -H "Authorization: Bearer $(oc whoami -t)" | jq '{id,name,status}'
 ```
 
-3. Verify policy includes the model:
+Expected output:
+
+```json
+{
+  "id": "<key-id>",
+  "name": "lab-key-py",
+  "status": "revoked"
+}
+```
+
+3. Repeat the chat request with the saved `${API_KEY}`. The gateway rejects the revoked key.
 
 ```bash
-oc get maasauthpolicy <policy-name> -n models-as-a-service -o jsonpath='{.spec.models}' | jq '.'
+python3 - << 'PY'
+import os
+import httpx
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["API_KEY2"],
+    base_url=os.environ["MODEL_URL"].rstrip("/") + "/v1",
+    http_client=httpx.Client(verify=False),
+)
+response = client.chat.completions.create(
+    model="qwen25-05b-llmd",
+    messages=[{"role": "user", "content": "What is OpenShift?"}],
+    max_tokens=50,
+)
+print(response.choices[0].message.content)
+PY
 ```
 
-4. Check user's current group membership:
+Expected output:
 
-```bash
-oc get user <username> -o jsonpath='{.groups}' | jq '.'
+```text
+Traceback (most recent call last):
+  File "<stdin>", line 10, in <module>
+  File "/Users/acidonpe/Documents/laptop-configuration/cursor/ai50-labs-instruction/.venv/lib/python3.9/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+  File "/Users/acidonpe/Documents/laptop-configuration/cursor/ai50-labs-instruction/.venv/lib/python3.9/site-packages/openai/resources/chat/completions/completions.py", line 1284, in create
+    return self._post(
+  File "/Users/acidonpe/Documents/laptop-configuration/cursor/ai50-labs-instruction/.venv/lib/python3.9/site-packages/openai/_base_client.py", line 1360, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+  File "/Users/acidonpe/Documents/laptop-configuration/cursor/ai50-labs-instruction/.venv/lib/python3.9/site-packages/openai/_base_client.py", line 1133, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.PermissionDeniedError: Error code: 403
 ```
 
-5. If user was removed from group, revoke their API keys.
+## When a call fails
 
-### 401 Unauthorized Errors
+| Result | What to check |
+| --- | --- |
+| `403` on the inference URL | `qwen25-05b-llmd-auth` is `Active`, its group is `system:authenticated:oauth`, and its model reference is `qwen25-05b-llmd` in `project01-model-deploy` |
+| `AUTH_FAILURE` from `/maas-api/...` | The `Authorization` header is `Bearer` plus the token from `oc whoami -t` |
+| Rejected `sk-oai-` key on the inference URL | Search for the key name and confirm `status` is `active` and `expirationDate` is still in the future |
+| Create request returns `invalid_subscription` | `qwen25-05b-llmd-demo` is `Active` in `models-as-a-service` |
 
-**Symptom**: API requests return `401 Unauthorized`.
-
-**Causes**:
-
-1. **Invalid or expired API key**
-2. **Revoked API key**
-3. **Missing Authorization header**
-
-**Solutions**:
-
-1. Verify key status:
-
-```bash
-# Via dashboard: Gen AI studio → API keys → check Status column
-# Via CLI: Query MaaS API
-curl -k "https://${GATEWAY_HOST}/maas-api/v1/api-keys" \
-  -H "Authorization: Bearer ${TOKEN}" | jq '.[] | select(.name=="<key-name>")'
-```
-
-2. Check Authorization header format:
-
-```bash
-# Correct format
-Authorization: Bearer sk-oai-<your-key>
-
-# Incorrect formats
-Authorization: sk-oai-<your-key>  # Missing "Bearer "
-Bearer sk-oai-<your-key>           # Missing "Authorization: "
-```
-
-3. Generate a new key if current key is expired or lost.
-
-### Authorization Policy Shows Failed Status
-
-**Symptom**: Policy status is `Failed`.
-
-**Solutions**:
-
-1. Check policy conditions:
-
-```bash
-oc get maasauthpolicy <policy-name> -n models-as-a-service -o jsonpath='{.status.conditions}' | jq '.'
-```
-
-2. Common issues:
-   - Model reference not found
-   - Invalid group name
-   - Model namespace doesn't exist
-3. Verify referenced models exist:
-
-```bash
-oc get maasmodelref <model-name> -n <model-namespace>
-```
-
-**Congratulations!** You have successfully configured authorization policies and API key management for Models-as-a-Service. In the next section, you will enable observability and monitor usage metrics.
+A request to `https://maas.<cluster-domain>/v1/chat/completions` has no gateway route. Send chat requests to `${MODEL_URL}/v1/chat/completions`.
